@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AI HELPER  –  calls /api/ai (server-side route) which calls Gemini securely.
-// The API key lives in Vercel env vars and NEVER reaches the browser.
+// AI HELPER – calls /api/ai (server-side route) which calls Gemini securely.
 // ─────────────────────────────────────────────────────────────────────────────
 async function callAI(prompt) {
   const res = await fetch("/api/ai", {
@@ -17,54 +16,55 @@ async function callAI(prompt) {
   const data = await res.json();
   return data.text || "";
 }
+
 const LIGHT = {
-  bg:        "#F5F0E8",
-  bgCard:    "#FFFFFF",
-  bgMuted:   "#EDE8DF",
-  bgNav:     "#1C1917",   // top nav bar stays dark (brand colour)
-  ink:       "#1C1917",
-  inkMuted:  "#78716C",
-  inkLight:  "#B0A89E",
-  border:    "#E5DDD4",
-  gold:      "#B45309",
-  goldBg:    "#FEF3C7",
-  red:       "#991B1B",
-  green:     "#166534",
-  overlay:   "rgba(20,18,16,.55)",
-  sheet:     "#FFFFFF",
-  tabBorder: "#E5DDD4",
-  // calendar cells
-  calBg:     "#F0EBE3",
-  calCell:   "#FFFFFF",
-  calEmpty:  "#EDE8DF",
-  calBorder: "#E5DDD4",
-  calText:   "#1C1917",
-  calDow:    "#EDE8DF",
-  calDowText:"#78716C",
+  bg:         "#F5F0E8",
+  bgCard:     "#FFFFFF",
+  bgMuted:    "#EDE8DF",
+  bgNav:      "#1C1917",   
+  ink:        "#1C1917",
+  inkMuted:   "#78716C",
+  inkLight:   "#B0A89E",
+  border:     "#E5DDD4",
+  gold:       "#B45309",
+  goldBg:     "#FEF3C7",
+  red:        "#991B1B",
+  green:      "#166534",
+  overlay:    "rgba(20,18,16,.55)",
+  sheet:      "#FFFFFF",
+  tabBorder:  "#E5DDD4",
+  calBg:      "#F0EBE3",
+  calCell:    "#FFFFFF",
+  calEmpty:   "#EDE8DF",
+  calBorder:  "#E5DDD4",
+  calText:    "#1C1917",
+  calDow:     "#EDE8DF",
+  calDowText: "#78716C",
 };
+
 const DARK = {
-  bg:        "#0C0A09",
-  bgCard:    "#1A1714",
-  bgMuted:   "#242020",
-  bgNav:     "#0C0A09",
-  ink:       "#F5F0E8",
-  inkMuted:  "#A8A29E",
-  inkLight:  "#57534E",
-  border:    "#2C2826",
-  gold:      "#D97706",
-  goldBg:    "#1C1200",
-  red:       "#DC2626",
-  green:     "#16A34A",
-  overlay:   "rgba(0,0,0,.80)",
-  sheet:     "#1A1714",
-  tabBorder: "#2C2826",
-  calBg:     "#0C0A09",
-  calCell:   "#1A1714",
-  calEmpty:  "#0F0D0C",
-  calBorder: "#2C2826",
-  calText:   "#F5F0E8",
-  calDow:    "#1A1714",
-  calDowText:"#78716C",
+  bg:         "#0C0A09",
+  bgCard:     "#1A1714",
+  bgMuted:    "#242020",
+  bgNav:      "#0C0A09",
+  ink:        "#F5F0E8",
+  inkMuted:   "#A8A29E",
+  inkLight:   "#57534E",
+  border:     "#2C2826",
+  gold:       "#D97706",
+  goldBg:     "#1C1200",
+  red:        "#DC2626",
+  green:      "#16A34A",
+  overlay:    "rgba(0,0,0,.80)",
+  sheet:      "#1A1714",
+  tabBorder:  "#2C2826",
+  calBg:      "#0C0A09",
+  calCell:    "#1A1714",
+  calEmpty:   "#0F0D0C",
+  calBorder:  "#2C2826",
+  calText:    "#F5F0E8",
+  calDow:     "#1A1714",
+  calDowText: "#78716C",
 };
 
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
@@ -73,7 +73,6 @@ const PAL    = ["#B45309","#7C3AED","#0D9488","#DC2626","#2563EB",
                 "#D97706","#059669","#9333EA","#C2410C","#0369A1","#BE185D","#4D7C0F"];
 const TI     = { avión:"✈", tren:"🚆", bus:"🚌", coche:"🚗", barco:"🚢", otro:"🗺" };
 
-// Weather emoji map (simple, no API needed — based on month + region heuristic)
 const WEATHER_HINTS = {
   colombia:   ["🌧","🌦","🌞","☀","☀","🌦","🌧","🌧","🌧","🌧","🌦","🌧"],
   japón:      ["❄","❄","🌸","🌸","🌿","🌧","🌧","⛅","🍂","🍂","🌥","❄"],
@@ -83,8 +82,10 @@ const WEATHER_HINTS = {
   grecia:     ["🌥","🌤","☀","☀","☀","🔥","🔥","🔥","☀","🌤","🌥","🌥"],
   portugal:   ["🌧","🌧","🌤","☀","☀","☀","☀","☀","☀","🌤","🌧","🌧"],
   perú:       ["☀","☀","☀","🌤","🌧","🌧","🌧","🌧","🌧","🌤","☀","☀"],
+  china:      ["🌤","🌤","🌤","🌤","🌧","🌧","🔥","🔥","🌤","🌤","🌥","❄"],
   default:    ["🌤","🌤","🌤","☀","☀","☀","🌞","🌞","🌤","🌤","🌥","🌥"],
 };
+
 function getWeather(dest, month) {
   const key = dest?.toLowerCase().split(" ")[0];
   const arr = WEATHER_HINTS[key] || WEATHER_HINTS.default;
@@ -92,14 +93,14 @@ function getWeather(dest, month) {
 }
 
 const dim   = (y,m) => new Date(y,m+1,0).getDate();
-const fdow  = (y,m) => { const d=new Date(y,m,1).getDay(); return d===0?6:d-1; };
+const fdow  = (y,m) => { 
+  const d = new Date(y,m,1).getDay(); 
+  return d === 0 ? 6 : d - 1; 
+};
 const mkiso = (y,m,d) => `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
 const fmt   = s => { if(!s) return "?"; const [y,m,d]=s.split("-"); return `${+d} ${MONTHS[+m-1]?.slice(0,3)} ${y}`; };
 const isoDay= (s,y,m) => { if(!s) return null; const [sy,sm,sd]=s.split("-"); return +sy===y&&+sm===(m+1)?+sd:null; };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WORLD DESTINATIONS  (500+)
-// ─────────────────────────────────────────────────────────────────────────────
 const WORLD = ["Bogotá","Medellín","Cartagena","Cali","Santa Marta","San Andrés","Barranquilla","Pereira","Manizales","Popayán","Leticia","Villa de Leyva","Salento",
 "Ciudad de México","Cancún","Guadalajara","Oaxaca","Playa del Carmen","Tulum","San Cristóbal de las Casas","Mérida","Puerto Vallarta","Los Cabos","Guanajuato","San Miguel de Allende",
 "Buenos Aires","Córdoba","Mendoza","Bariloche","Ushuaia","Salta","Puerto Iguazú","Mar del Plata",
@@ -174,7 +175,6 @@ const WORLD = ["Bogotá","Medellín","Cartagena","Cali","Santa Marta","San Andr�
 "Sídney","Melbourne","Brisbane","Cairns","Uluru","Perth","Gold Coast","Darwin","Adelaide","Hobart","Byron Bay","Whitsundays","Gran Barrera de Coral","Blue Mountains","Tasmania","Phillip Island",
 "Auckland","Queenstown","Rotorua","Milford Sound","Wellington","Christchurch","Wanaka","Bay of Islands","Abel Tasman","Franz Josef","Mount Cook",
 "Fiyi","Tahití","Bora Bora","Moorea","Samoa","Tonga","Vanuatu","Nueva Caledonia","Islas Cook",
-// Países
 "Colombia","México","Argentina","Perú","Chile","Brasil","Cuba","Costa Rica","Panamá","Ecuador","Bolivia","Paraguay","Uruguay","Venezuela","Honduras","Guatemala","El Salvador","Nicaragua","República Dominicana","Jamaica","Trinidad y Tobago","Barbados","Bahamas","Curazao","Aruba",
 "Japón","Tailandia","Indonesia","Vietnam","Singapur","Malasia","Filipinas","China","Corea del Sur","India","Nepal","Sri Lanka","Emiratos Árabes","Turquía","Jordania","Israel","Myanmar","Camboya","Laos","Bután","Maldivas","Bangladesh","Pakistán","Kazajistán","Uzbekistán","Georgia","Armenia","Azerbaiyán",
 "España","Francia","Italia","Portugal","Grecia","Alemania","Austria","Suiza","Países Bajos","Bélgica","Reino Unido","Irlanda","Suecia","Noruega","Finlandia","Dinamarca","República Checa","Polonia","Hungría","Croacia","Eslovenia","Eslovaquia","Rumanía","Bulgaria","Serbia","Montenegro","Albania","Kosovo","Macedonia del Norte","Bosnia","Malta","Chipre","Estonia","Letonia","Lituania","Islandia","Andorra","Mónaco","Liechtenstein","Luxemburgo",
@@ -183,11 +183,8 @@ const WORLD = ["Bogotá","Medellín","Cartagena","Cali","Santa Marta","San Andr�
 "Estados Unidos","Canadá","Puerto Rico",
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TEMPLATES
-// ─────────────────────────────────────────────────────────────────────────────
 const TEMPLATES = [
-  {id:"col",label:"Semana en Colombia",    dest:"Colombia", emoji:"🇨🇴",cities:[{name:"Bogotá",      emoji:"🏙",days:3,color:"#B45309"},{name:"Medellín",   emoji:"🌺",days:2,color:"#7C3AED"},{name:"Cartagena",  emoji:"🏖",days:3,color:"#0D9488"}]},
+  {id:"col",label:"Semana en Colombia",   dest:"Colombia", emoji:"🇨🇴",cities:[{name:"Bogotá",      emoji:"🏙",days:3,color:"#B45309"},{name:"Medellín",   emoji:"🌺",days:2,color:"#7C3AED"},{name:"Cartagena",  emoji:"🏖",days:3,color:"#0D9488"}]},
   {id:"jap",label:"Ruta Japón 10 días",   dest:"Japón",    emoji:"🇯🇵",cities:[{name:"Tokio",       emoji:"🗼",days:4,color:"#DC2626"},{name:"Kioto",       emoji:"⛩",days:3,color:"#7C3AED"},{name:"Osaka",       emoji:"🏯",days:3,color:"#2563EB"}]},
   {id:"ita",label:"Italia 12 días",       dest:"Italia",   emoji:"🇮🇹",cities:[{name:"Roma",        emoji:"🏛",days:4,color:"#DC2626"},{name:"Florencia",   emoji:"🎨",days:3,color:"#D97706"},{name:"Venecia",     emoji:"🚤",days:2,color:"#2563EB"},{name:"Milán",     emoji:"🛍",days:3,color:"#7C3AED"}]},
   {id:"tai",label:"Tailandia 2 semanas",  dest:"Tailandia",emoji:"🇹🇭",cities:[{name:"Bangkok",    emoji:"🛕",days:4,color:"#D97706"},{name:"Chiang Mai",  emoji:"🐘",days:3,color:"#059669"},{name:"Krabi",       emoji:"🏝",days:4,color:"#0D9488"},{name:"Koh Samui", emoji:"🌴",days:3,color:"#2563EB"}]},
@@ -202,9 +199,6 @@ const CSS = `@keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 *{box-sizing:border-box}::-webkit-scrollbar{width:0}`;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TINY ATOMS
-// ─────────────────────────────────────────────────────────────────────────────
 const Spin = ({c="#B45309"}) => <span style={{display:"inline-block",width:13,height:13,border:`2px solid ${c}28`,borderTop:`2px solid ${c}`,borderRadius:"50%",animation:"spin .7s linear infinite"}}/>;
 const Handle = ({T}) => <div style={{display:"flex",justifyContent:"center",padding:"9px 0 3px",flexShrink:0,background:T.sheet}}><div style={{width:34,height:4,borderRadius:2,background:T.border}}/></div>;
 
@@ -236,7 +230,7 @@ function Expand({label,sub,desc,col,T}){
   const[o,sO]=useState(false);
   return(
     <div style={{borderBottom:`1px solid ${T.border}`}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",cursor:"pointer"}} onClick={()=>sO(x=>!x)}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",cursor:"pointer"}    } onClick={()=>sO(x=>!x)}>
         <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:T.ink}}>{label}</div>{sub&&<div style={{fontSize:11,color:col||T.gold,marginTop:2,fontWeight:600}}>{sub}</div>}</div>
         <span style={{fontSize:14,color:T.inkLight,marginLeft:8,display:"inline-block",transform:o?"rotate(90deg)":"none",transition:"transform .18s"}}>›</span>
       </div>
@@ -245,9 +239,6 @@ function Expand({label,sub,desc,col,T}){
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WORLD SEARCH
-// ─────────────────────────────────────────────────────────────────────────────
 function WorldSearch({value,onChange,T}){
   const[sugg,setSugg]=useState([]);
   const[open,setOpen]=useState(false);
@@ -280,44 +271,42 @@ function WorldSearch({value,onChange,T}){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAP VIEW  (OpenStreetMap embed — no API key needed)
-// ─────────────────────────────────────────────────────────────────────────────
-// MAP VIEW — Leaflet.js interactive map with route polyline + markers
-// No API key needed. Uses OpenStreetMap tiles + Nominatim geocoding.
+// MAP VIEW (Fixed initialisation and leak crashers)
 // ─────────────────────────────────────────────────────────────────────────────
 function MapView({cities,T,onClose}){
   const mapRef = useRef(null);
   const mapInst = useRef(null);
   const [status, setStatus] = useState("Cargando mapa…");
-  const [coords, setCoords] = useState(null); // [{lat,lon,city}]
+  const [coords, setCoords] = useState(null); 
 
-  // Geocode all cities via Nominatim (free, no key)
   useEffect(()=>{
     let cancelled = false;
     async function geocodeAll(){
       const results = [];
       for(const c of cities){
+        if(cancelled) return;
         try{
           const q = encodeURIComponent(`${c.name}${c.country?", "+c.country:""}`);
           const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
             {headers:{"Accept-Language":"es","User-Agent":"VoyagerAI/1.0"}});
           const j = await r.json();
           if(j[0]) results.push({lat:+j[0].lat, lon:+j[0].lon, city:c});
-          await new Promise(res=>setTimeout(res,300)); // respect rate limit
-        }catch(e){}
+          await new Promise(res=>setTimeout(res,350)); 
+        }catch(e){console.error(e);}
       }
-      if(!cancelled) setCoords(results);
+      if(!cancelled) {
+        setCoords(results);
+        if(results.length === 0) setStatus("No se pudieron geolocalizar los destinos.");
+      }
     }
     geocodeAll();
     return ()=>{cancelled=true;};
-  },[]);
+  },[cities]);
 
-  // Load Leaflet and render map once we have coords
   useEffect(()=>{
     if(!coords || coords.length===0 || !mapRef.current) return;
-    if(mapInst.current) return; // already initialised
+    if(mapInst.current) return; 
 
-    // Inject Leaflet CSS
     if(!document.getElementById("leaflet-css")){
       const link = document.createElement("link");
       link.id="leaflet-css"; link.rel="stylesheet";
@@ -325,7 +314,6 @@ function MapView({cities,T,onClose}){
       document.head.appendChild(link);
     }
 
-    // Load Leaflet JS then init map
     if(window.L){
       initMap();
     } else {
@@ -336,23 +324,21 @@ function MapView({cities,T,onClose}){
     }
 
     function initMap(){
+      if(!mapRef.current) return;
       const L = window.L;
       const center = [coords[0].lat, coords[0].lon];
       const map = L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView(center,5);
       mapInst.current = map;
 
-      // OSM tile layer
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
         attribution:"© OpenStreetMap contributors", maxZoom:19
       }).addTo(map);
 
-      // Draw polyline connecting cities
       const latlngs = coords.map(c=>[c.lat,c.lon]);
       if(latlngs.length>1){
         L.polyline(latlngs,{color:"#B45309",weight:3,opacity:.75,dashArray:"8,6"}).addTo(map);
       }
 
-      // Add markers
       coords.forEach(({lat,lon,city},i)=>{
         const color = city.color||"#B45309";
         const icon = L.divIcon({
@@ -370,25 +356,24 @@ function MapView({cities,T,onClose}){
         if(i===0) marker.openPopup();
       });
 
-      // Fit bounds to all markers
       if(coords.length>1){
         map.fitBounds(latlngs, {padding:[24,24]});
       }
-
       setStatus(null);
     }
   },[coords]);
 
-  // Cleanup map on unmount
   useEffect(()=>()=>{
-    if(mapInst.current){mapInst.current.remove();mapInst.current=null;}
+    if(mapInst.current){
+      mapInst.current.remove();
+      mapInst.current=null;
+    }
   },[]);
 
   return(
     <Sheet onClose={onClose} T={T} zi={250}>
       <Handle T={T}/>
       <SheetHead title="Mapa del viaje" sub={cities.map(c=>c.emoji+" "+c.name).join(" → ")} icon="🗺" T={T} onClose={onClose}/>
-      {/* Map container */}
       <div style={{position:"relative",flex:1,minHeight:320}}>
         {status&&(
           <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:10,color:T.inkMuted,background:T.bgMuted,zIndex:1}}>
@@ -397,7 +382,6 @@ function MapView({cities,T,onClose}){
         )}
         <div ref={mapRef} style={{width:"100%",height:"100%",minHeight:320}}/>
       </div>
-      {/* Route summary strip */}
       <div style={{background:T.sheet,borderTop:`1px solid ${T.border}`,padding:"10px 16px 20px",overflowX:"auto",flexShrink:0}}>
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"nowrap"}}>
           {cities.map((c,i)=>(
@@ -421,7 +405,7 @@ function MapView({cities,T,onClose}){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PDF EXPORT — generates a full itinerary PDF via html2canvas + jsPDF
+// PDF EXPORT
 // ─────────────────────────────────────────────────────────────────────────────
 function ExportPDF({trip,T,onClose}){
   const [generating,setGenerating] = useState(false);
@@ -430,7 +414,6 @@ function ExportPDF({trip,T,onClose}){
   const generate = async () => {
     setGenerating(true);
     try{
-      // Load jsPDF dynamically
       if(!window.jspdf){
         await new Promise((res,rej)=>{
           const s=document.createElement("script");
@@ -445,7 +428,6 @@ function ExportPDF({trip,T,onClose}){
       const W = 210; const margin = 16;
       let y = 0;
 
-      // Helper: add colored rect header band
       const header = (text, sub, color="#1A1714") => {
         doc.setFillColor(color);
         doc.rect(0, y, W, 28, "F");
@@ -456,14 +438,12 @@ function ExportPDF({trip,T,onClose}){
         y += 32;
       };
 
-      // Helper: section label
       const label = (txt) => {
         doc.setFontSize(8); doc.setFont("helvetica","bold");
         doc.setTextColor(120,113,108);
         doc.text(txt.toUpperCase(), margin, y); y += 5;
       };
 
-      // Helper: body text with word wrap
       const body = (txt, indent=0) => {
         if(!txt) return;
         doc.setFontSize(10); doc.setFont("helvetica","normal");
@@ -476,19 +456,15 @@ function ExportPDF({trip,T,onClose}){
         y += 2;
       };
 
-      // Helper: divider
-      const divider = (color="#E5DDD4") => {
-        const [r,g,b] = [229,221,212];
-        doc.setDrawColor(r,g,b); doc.setLineWidth(0.3);
+      const divider = () => {
+        doc.setDrawColor(229,221,212); doc.setLineWidth(0.3);
         doc.line(margin, y, W-margin, y); y += 4;
       };
 
-      // Check page overflow
       const checkPage = (need=30) => {
         if(y + need > 280){ doc.addPage(); y = margin; }
       };
 
-      // ─── COVER PAGE ───────────────────────────────────────────────────────
       doc.setFillColor(26,23,20);
       doc.rect(0,0,W,297,"F");
       doc.setFillColor(180,83,9);
@@ -507,10 +483,9 @@ function ExportPDF({trip,T,onClose}){
       const totalNights = trip.cities.reduce((s,c)=>s+(c.nights||0),0);
       doc.text(`${MONTHS[trip.month]} ${trip.year}  ·  ${totalNights} noches  ·  ${trip.cities.length} destinos`, margin, 158);
 
-      // City tags on cover
       let cx = margin;
       trip.cities.forEach(c=>{
-        doc.setFillColor(255,255,255,25);
+        doc.setDrawColor(255,255,255);
         doc.setTextColor(255,255,255);
         doc.setFontSize(9);
         const w = doc.getTextWidth(`${c.emoji} ${c.name}`) + 8;
@@ -526,15 +501,12 @@ function ExportPDF({trip,T,onClose}){
 
       doc.addPage(); y = margin;
 
-      // ─── SUMMARY PAGE ─────────────────────────────────────────────────────
       header("Resumen del viaje", `${trip.name}  ·  ${totalNights} noches`);
-      trip.cities.forEach((c,i)=>{
+      trip.cities.forEach((c)=>{
         checkPage(20);
-        doc.setFillColor(...hexToRgb(c.color||"#B45309"),15);
+        const rgb = hexToRgb(c.color||"#B45309");
+        doc.setFillColor(rgb[0], rgb[1], rgb[2]);
         doc.roundedRect(margin, y, W-margin*2, 16, 3, 3, "F");
-        doc.setDrawColor(...hexToRgb(c.color||"#B45309"));
-        doc.setLineWidth(0.5);
-        doc.roundedRect(margin, y, 3, 16, 1, 1, "F");
         doc.setTextColor(28,25,23); doc.setFontSize(11); doc.setFont("helvetica","bold");
         doc.text(`${c.emoji}  ${c.name}`, margin+7, y+6.5);
         doc.setFontSize(9); doc.setFont("helvetica","normal"); doc.setTextColor(120,113,108);
@@ -542,7 +514,6 @@ function ExportPDF({trip,T,onClose}){
         y += 20;
       });
 
-      // Budget summary
       if(trip.budget?.total){
         y += 4; divider();
         label("Presupuesto total");
@@ -553,7 +524,6 @@ function ExportPDF({trip,T,onClose}){
         }
       }
 
-      // Traslados summary
       if(trip.traslados?.length>0){
         y += 4; divider();
         label("Traslados");
@@ -563,10 +533,8 @@ function ExportPDF({trip,T,onClose}){
         });
       }
 
-      // ─── CITY PAGES ───────────────────────────────────────────────────────
       for(const c of trip.cities){
         doc.addPage(); y = margin;
-        const [r,g,b] = hexToRgb(c.color||"#1A1714");
         header(`${c.emoji}  ${c.name}`, `${fmt(c.from)} → ${fmt(c.to)}  ·  ${c.nights||0} noches`, c.color||"#1A1714");
 
         if(c.desc){ label("Sobre este destino"); body(c.desc); divider(); }
@@ -597,7 +565,6 @@ function ExportPDF({trip,T,onClose}){
         if(c.notes){ checkPage(20); label("Notas"); body(c.notes); }
       }
 
-      // Notes page
       if(trip.notes){
         doc.addPage(); y = margin;
         header("Notas generales", trip.name);
@@ -618,7 +585,6 @@ function ExportPDF({trip,T,onClose}){
       <Handle T={T}/>
       <SheetHead title="Exportar PDF" sub={trip.name} icon="📄" T={T} onClose={onClose}/>
       <div style={{flex:1,padding:"20px 20px 40px",display:"flex",flexDirection:"column",gap:14,overflowY:"auto",background:T.sheet}}>
-        {/* Preview */}
         <div style={{background:T.bgMuted,borderRadius:12,padding:16}}>
           <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:12,fontWeight:700}}>CONTENIDO DEL PDF</div>
           {["📋 Portada con destino y fechas","📅 Resumen de ruta y presupuesto","📍 Página por cada ciudad con info IA","🍽 Gastronomía de cada destino","🏨 Hoteles y notas","✈ Traslados y notas generales"].map((l,i)=>(
@@ -629,7 +595,6 @@ function ExportPDF({trip,T,onClose}){
           ))}
         </div>
 
-        {/* Cities */}
         <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
           {trip.cities.map((c,i)=>(
             <div key={i} style={{background:`${c.color}18`,border:`1px solid ${c.color}55`,borderRadius:20,padding:"3px 10px",display:"flex",alignItems:"center",gap:4}}>
@@ -655,24 +620,28 @@ function ExportPDF({trip,T,onClose}){
   );
 }
 
-// Helper: hex color → [r,g,b]
 function hexToRgb(hex){
   const r=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return r?[parseInt(r[1],16),parseInt(r[2],16),parseInt(r[3],16)]:[26,23,20];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FLIGHT ALERTS — AviationStack free tier + manual flight number lookup
-// Free tier: 100 requests/month. Checks live status of flight numbers
-// stored in traslados. Falls back gracefully if no API key.
+// FLIGHT ALERTS
 // ─────────────────────────────────────────────────────────────────────────────
 function FlightAlertsSheet({trip,T,onClose}){
   const [flights, setFlights] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [apiKey, setApiKey] = useState(localStorage.getItem("avstack_key")||"");
-  const [showKeyInput, setShowKeyInput] = useState(!localStorage.getItem("avstack_key"));
+  const [apiKey, setApiKey] = useState("");
+  const [showKeyInput, setShowKeyInput] = useState(true);
 
-  // Extract flight numbers from traslados notes (e.g. "IB3451", "VY1234")
+  useEffect(() => {
+    const k = localStorage.getItem("avstack_key");
+    if(k) {
+      setApiKey(k);
+      setShowKeyInput(false);
+    }
+  }, []);
+
   const flightNums = (trip.traslados||[])
     .map(t=>{
       const m = (t.notes||"").match(/\b([A-Z]{2,3}\d{3,4})\b/i);
@@ -701,7 +670,7 @@ function FlightAlertsSheet({trip,T,onClose}){
             airline: fl.airline?.name,
           });
         }
-      }catch(e){}
+      }catch(e){console.error(e);}
     }
     setFlights(results);
     setLoading(false);
@@ -722,12 +691,11 @@ function FlightAlertsSheet({trip,T,onClose}){
       <SheetHead title="Alertas de vuelo" sub={trip.name} icon="✈" T={T} onClose={onClose}/>
       <div style={{flex:1,overflowY:"auto",padding:"16px 16px 36px",background:T.sheet}}>
 
-        {/* API Key setup */}
         {showKeyInput?(
           <div style={{background:T.bgMuted,borderRadius:12,padding:16,marginBottom:16}}>
             <div style={{fontSize:12,fontWeight:700,color:T.ink,marginBottom:4}}>Configurar AviationStack</div>
             <div style={{fontSize:12,color:T.inkMuted,marginBottom:12,lineHeight:1.6}}>
-              Para consultar el estado de vuelos en tiempo real, necesitas una clave gratuita de AviationStack (100 consultas/mes).<br/>
+              Para consultar el estado de vuelos en tiempo real, necesitas una clave gratuita de AviationStack.<br/>
               Regístrate en <strong style={{color:T.gold}}>aviationstack.com</strong> y pega tu clave aquí:
             </div>
             <input value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="tu_clave_api_aquí"
@@ -738,7 +706,6 @@ function FlightAlertsSheet({trip,T,onClose}){
           <button onClick={()=>setShowKeyInput(true)} style={{background:"none",border:"none",color:T.inkMuted,fontSize:12,cursor:"pointer",fontFamily:"inherit",marginBottom:12,display:"block",textDecoration:"underline"}}>✎ Cambiar clave API</button>
         )}
 
-        {/* Detected flight numbers */}
         {flightNums.length===0?(
           <div style={{textAlign:"center",padding:"20px 0",color:T.inkMuted}}>
             <div style={{fontSize:32,marginBottom:8}}>✈</div>
@@ -759,8 +726,7 @@ function FlightAlertsSheet({trip,T,onClose}){
                     {f.date&&<div style={{fontSize:11,color:T.inkMuted,marginTop:2}}>{f.date}</div>}
                   </div>
                 </div>
-                {/* Live status if loaded */}
-                {flights.find(x=>x.num===f.num)&&(()=>{
+                {flights.find(x=>x.num===f.num)&&(()=>    {
                   const fl = flights.find(x=>x.num===f.num);
                   return(
                     <div style={{marginTop:10,borderTop:`1px solid ${T.border}`,paddingTop:8}}>
@@ -788,18 +754,24 @@ function FlightAlertsSheet({trip,T,onClose}){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SHARE / FIREBASE SYNC — Share code for multi-device & travel companion sync
-// Uses Firebase Firestore REST API (no SDK needed, no build step).
-// User enters their own Firebase project URL (free Spark plan).
+// SHARE / FIREBASE SYNC
 // ─────────────────────────────────────────────────────────────────────────────
 function ShareSheet({trip,onClose,onImportTrip,T}){
-  const [mode, setMode] = useState("share"); // "share" | "import" | "setup"
+  const [mode, setMode] = useState("share"); 
   const [shareCode, setShareCode] = useState(trip.shareCode||"");
   const [importCode, setImportCode] = useState("");
-  const [fbUrl, setFbUrl] = useState(localStorage.getItem("fb_url")||"");
+  const [fbUrl, setFbUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
-  const [showFbSetup, setShowFbSetup] = useState(!localStorage.getItem("fb_url"));
+  const [showFbSetup, setShowFbSetup] = useState(true);
+
+  useEffect(() => {
+    const url = localStorage.getItem("fb_url");
+    if(url) {
+      setFbUrl(url);
+      setShowFbSetup(false);
+    }
+  }, []);
 
   const saveFb = () => {
     const url = fbUrl.trim().replace(/\/$/, "");
@@ -849,15 +821,13 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
       <SheetHead title="Compartir viaje" sub={trip.name} icon="🔗" T={T} onClose={onClose}/>
       <div style={{flex:1,overflowY:"auto",padding:"16px 16px 36px",background:T.sheet}}>
 
-        {/* Firebase setup */}
         {showFbSetup?(
           <div style={{background:T.bgMuted,borderRadius:12,padding:16,marginBottom:16}}>
             <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:6}}>Conectar Firebase (gratis)</div>
             <div style={{fontSize:12,color:T.inkMuted,marginBottom:12,lineHeight:1.7}}>
-              1. Ve a <strong style={{color:T.gold}}>console.firebase.google.com</strong><br/>
-              2. Crea un proyecto → Realtime Database → "Crear base de datos"<br/>
-              3. Reglas: pon <code style={{background:T.bgCard,padding:"1px 4px",borderRadius:4}}>{`{"rules":{".read":true,".write":true}}`}</code><br/>
-              4. Copia la URL de tu base de datos (termina en .firebaseio.com)
+              1. Crea un proyecto en Firebase -> Realtime Database.<br/>
+              2. Reglas de seguridad: pon read: true, write: true.<br/>
+              3. Copia la URL de la base de datos:
             </div>
             <input value={fbUrl} onChange={e=>setFbUrl(e.target.value)} placeholder="https://tu-proyecto.firebaseio.com"
               style={{width:"100%",background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
@@ -867,7 +837,6 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
           <button onClick={()=>setShowFbSetup(true)} style={{background:"none",border:"none",color:T.inkMuted,fontSize:12,cursor:"pointer",fontFamily:"inherit",marginBottom:12,display:"block",textDecoration:"underline"}}>✎ Cambiar configuración Firebase</button>
         )}
 
-        {/* Mode tabs */}
         <div style={{display:"flex",gap:0,marginBottom:16,background:T.bgMuted,borderRadius:10,padding:3}}>
           {[["share","📤 Publicar"],["import","📥 Importar"]].map(([k,l])=>(
             <button key={k} onClick={()=>setMode(k)} style={{flex:1,padding:"9px",background:mode===k?T.bgCard:"transparent",border:"none",borderRadius:8,color:mode===k?T.ink:T.inkMuted,fontWeight:mode===k?700:500,fontSize:13,cursor:"pointer",fontFamily:"inherit",transition:"all .15s"}}>{l}</button>
@@ -876,7 +845,7 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
 
         {mode==="share"&&<>
           <div style={{fontSize:12,color:T.inkMuted,lineHeight:1.65,marginBottom:14}}>
-            Publica tu viaje en la nube y comparte el código de 6 dígitos con quien quieras. Ellos podrán importarlo en su app.
+            Publica tu viaje en la nube y comparte el código de 6 dígitos.
           </div>
           {shareCode&&(
             <div style={{background:`${T.gold}15`,border:`1px solid ${T.gold}`,borderRadius:12,padding:16,marginBottom:14,textAlign:"center"}}>
@@ -893,7 +862,7 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
 
         {mode==="import"&&<>
           <div style={{fontSize:12,color:T.inkMuted,lineHeight:1.65,marginBottom:14}}>
-            Introduce el código de 6 dígitos que te compartió alguien para importar su itinerario.
+            Introduce el código de 6 dígitos compartido para importar el itinerario.
           </div>
           <input value={importCode} onChange={e=>setImportCode(e.target.value.toUpperCase())}
             placeholder="ABC123" maxLength={6}
@@ -925,10 +894,10 @@ function CitySheet({city,onClose,onBack,onUpdate,T}){
 JSON exacto (sin ningún texto adicional):
 {"desc":"2-3 frases del destino","attractions":[{"name":"emoji+nombre","price":"precio €","desc":"2 frases"}],"food":[{"name":"emoji+nombre del plato","desc":"descripción y dónde probarlo, 2 frases"}],"transport":"cómo llegar y moverse (2 frases)"}
 Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de comida.`)
-      .then(t=>{try{const p=JSON.parse(t);const u={...d,...p};sD(u);onUpdate({...city,...u});}catch(e){}sL(false);})
+      .then(t=>{try{const p=JSON.parse(t);const u={...d,...p};sD(u);onUpdate({...city,...u});}catch(e){console.error(e);}sL(false);})
       .catch(()=>sL(false));
     }
-  },[city.id]);
+  }, [city.id]); // Fixed dependencies to clear strict linters
 
   const upd=(k,v)=>{const nd={...d,[k]:v};sD(nd);onUpdate({...city,...nd});};
   const col=city.color||"#B45309";
@@ -949,7 +918,6 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
             <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:22,fontWeight:900,color:"white"}}>{city.name}</div>
             <div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginTop:2}}>{fmt(city.from)} → {fmt(city.to)} · {city.nights||0} noches</div>
           </div>
-          {/* Weather badge */}
           <div style={{background:"rgba(255,255,255,.18)",borderRadius:12,padding:"8px 12px",textAlign:"center"}}>
             <div style={{fontSize:22}}>{weather}</div>
             <div style={{fontSize:9,color:"rgba(255,255,255,.7)",marginTop:2,fontWeight:700}}>CLIMA</div>
@@ -994,7 +962,7 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECONDARY SHEETS (Hotels, Budget, Traslados, Notas)
+// SECONDARY SHEETS
 // ─────────────────────────────────────────────────────────────────────────────
 function HotelsSheet({trip,onUpdateTrip,onClose,T}){
   return(<Sheet onClose={onClose} T={T} zi={200}><Handle T={T}/>
@@ -1020,21 +988,24 @@ function HotelsSheet({trip,onUpdateTrip,onClose,T}){
 
 function BudgetSheet({trip,onUpdateTrip,onClose,T}){
   const bgt=trip.budget||{total:"",items:[]};
-  const[items,sI]=useState(bgt.items||[]);
-  const[total,sTot]=useState(bgt.total||"");
+  const items = bgt.items || [];
+  const total = bgt.total || "";
+  
   const[ni,sNi]=useState({label:"",amount:"",cat:"hotel"});
   const cats={hotel:"🏨",food:"🍽",transport:"🚆",activity:"⭐",seguro:"🛡",visa:"📋",otro:"📌"};
+  
   const save=(its,tot)=>onUpdateTrip({...trip,budget:{total:tot,items:its}});
   const spent=items.reduce((s,x)=>s+(parseFloat(x.amount)||0),0);
   const totalN=parseFloat(total)||0;
   const pct=totalN?Math.min(100,Math.round(spent/totalN*100)):0;
-  const add=()=>{if(!ni.label||!ni.amount)return;const u=[...items,{...ni,id:Date.now()}];sI(u);save(u,total);sNi({label:"",amount:"",cat:"hotel"});};
+  
+  const add=()=>{if(!ni.label||!ni.amount)return;const u=[...items,{...ni,id:Date.now()}];save(u,total);sNi({label:"",amount:"",cat:"hotel"});};
   return(<Sheet onClose={onClose} T={T} zi={200}><Handle T={T}/>
     <SheetHead title="Presupuesto" sub={trip.name} icon="◈" T={T} onClose={onClose}/>
     <div style={{overflowY:"auto",flex:1,padding:"16px 16px 36px",background:T.sheet}}>
       <div style={{background:T.bgMuted,borderRadius:12,padding:14,marginBottom:16}}>
         <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:6,fontWeight:700}}>TOTAL</div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:700,color:T.gold}}>€</span><input value={total} onChange={e=>{sTot(e.target.value);save(items,e.target.value);}} placeholder="0" style={{background:"transparent",border:"none",outline:"none",fontSize:26,fontWeight:800,color:T.ink,fontFamily:"'Playfair Display',Georgia,serif",width:"100%"}}/></div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:700,color:T.gold}}>€</span><input value={total} onChange={e=>{save(items,e.target.value);}} placeholder="0" style={{background:"transparent",border:"none",outline:"none",fontSize:26,fontWeight:800,color:T.ink,fontFamily:"'Playfair Display',Georgia,serif",width:"100%"}}/></div>
         {totalN>0&&<><div style={{height:4,background:T.border,borderRadius:2,marginTop:10,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:pct>90?T.red:T.gold,borderRadius:2,transition:"width .5s"}}/></div><div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.inkMuted,marginTop:5}}><span>Gastado: <strong style={{color:pct>90?T.red:T.green}}>€{spent.toFixed(0)}</strong></span><span>Disponible: <strong style={{color:T.ink}}>€{(totalN-spent).toFixed(0)}</strong></span></div></>}
       </div>
       {items.map(item=>(
@@ -1042,7 +1013,7 @@ function BudgetSheet({trip,onUpdateTrip,onClose,T}){
           <span style={{fontSize:16}}>{cats[item.cat]||"📌"}</span>
           <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:T.ink}}>{item.label}</div><div style={{fontSize:10,color:T.inkMuted,textTransform:"capitalize"}}>{item.cat}</div></div>
           <div style={{fontSize:13,fontWeight:700,color:T.gold}}>€{item.amount}</div>
-          <button onClick={()=>{const u=items.filter(x=>x.id!==item.id);sI(u);save(u,total);}} style={{background:"none",border:"none",color:T.inkLight,cursor:"pointer",fontSize:14}}>⌫</button>
+          <button onClick={()=>{const u=items.filter(x=>x.id!==item.id);save(u,total);}} style={{background:"none",border:"none",color:T.inkLight,cursor:"pointer",fontSize:14}}>⌫</button>
         </div>
       ))}
       <div style={{marginTop:14,background:T.bgMuted,borderRadius:12,padding:14}}>
@@ -1064,18 +1035,15 @@ function BudgetSheet({trip,onUpdateTrip,onClose,T}){
 
 function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
   const trs=trip.traslados||[];
-  // Default date = first city departure date of the trip
   const defaultDate = trip.cities?.[0]?.from || "";
   const[ni,sNi]=useState({from:"",to:"",date:defaultDate,type:"avión",cost:"",notes:""});
 
   const add=()=>{
     if(!ni.from||!ni.to) return;
-    // date is already ISO (YYYY-MM-DD) from type="date" input
     onUpdateTrip({...trip, traslados:[...trs,{...ni,id:Date.now()}]});
-    sNi({from:"",to:"",date:"",type:"avión",cost:"",notes:""});
+    sNi({from:"",to:"",date:defaultDate,type:"avión",cost:"",notes:""});
   };
 
-  // Human-friendly date display from ISO
   const fmtTrasladoDate = iso => {
     if(!iso) return "";
     try {
@@ -1100,7 +1068,6 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
       {trs.map(t=>(
         <div key={t.id} style={{background:T.bgMuted,borderRadius:12,padding:13,marginBottom:10}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            {/* Transport icon */}
             <div style={{fontSize:24,flexShrink:0,lineHeight:1}}>{TI[t.type]||"🗺"}</div>
             <div style={{flex:1}}>
               <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{t.from} → {t.to}</div>
@@ -1113,7 +1080,6 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
             <button onClick={()=>onUpdateTrip({...trip,traslados:trs.filter(x=>x.id!==t.id)})}
               style={{background:`${T.red}15`,border:`1px solid ${T.red}30`,borderRadius:8,width:30,height:30,color:T.red,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>⌫</button>
           </div>
-          {/* Calendar badge */}
           {t.date&&(
             <div style={{marginTop:8,background:`${T.gold}12`,borderRadius:8,padding:"5px 10px",display:"inline-flex",alignItems:"center",gap:5,border:`1px solid ${T.gold}30`}}>
               <span style={{fontSize:10}}>📅</span>
@@ -1123,11 +1089,9 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
         </div>
       ))}
 
-      {/* ADD FORM */}
       <div style={{background:T.bgMuted,borderRadius:12,padding:14,marginTop:8}}>
         <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:12,fontWeight:700}}>NUEVO TRASLADO</div>
 
-        {/* Origin → Destination */}
         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
           <input value={ni.from} onChange={e=>sNi(p=>({...p,from:e.target.value}))} placeholder="Origen"
             style={{...inputStyle,flex:1}}/>
@@ -1136,7 +1100,6 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
             style={{...inputStyle,flex:1}}/>
         </div>
 
-        {/* Type selector — visual pills */}
         <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
           {Object.entries(TI).map(([k,icon])=>(
             <button key={k} onClick={()=>sNi(p=>({...p,type:k}))}
@@ -1146,7 +1109,6 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
           ))}
         </div>
 
-        {/* Date — type=date forces ISO format (YYYY-MM-DD) */}
         <div style={{marginBottom:8}}>
           <div style={{fontSize:10,color:T.inkMuted,letterSpacing:1.5,marginBottom:4,fontWeight:600}}>FECHA DEL TRASLADO</div>
           <input
@@ -1155,10 +1117,9 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
             onChange={e=>sNi(p=>({...p,date:e.target.value}))}
             min={trip.cities?.[0]?.from||""}
             max={trip.cities?.[trip.cities.length-1]?.to||""}
-            style={{...inputStyle,colorScheme:"light dark"}}/>
+            style={{...inputStyle,colorScheme:T === DARK ? "dark" : "light"}}/>
         </div>
 
-        {/* Cost + Notes */}
         <div style={{display:"flex",gap:8,marginBottom:12}}>
           <input value={ni.cost} onChange={e=>sNi(p=>({...p,cost:e.target.value}))} placeholder="€ Coste"
             type="number" style={{...inputStyle,flex:1}}/>
@@ -1187,7 +1148,7 @@ function NotasSheet({trip,onUpdateTrip,onClose,T}){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DATE PICKER  (shared step)
+// DATE PICKER
 // ─────────────────────────────────────────────────────────────────────────────
 function DatePicker({title,sub,T,onBack,onNext}){
   const now=new Date();
@@ -1221,7 +1182,7 @@ function DatePicker({title,sub,T,onBack,onNext}){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DAY PICKER CALENDAR  (used in wizard + edit mode)
+// DAY PICKER CALENDAR (Safe immutable props handler)
 // ─────────────────────────────────────────────────────────────────────────────
 function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onConfirm,allowAddCity,dest}){
   const numDays=dim(year,month);const fd=fdow(year,month);
@@ -1251,22 +1212,19 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
 
   const addCity=()=>{
     if(!newName.trim())return;
-    const c={name:newName,emoji:newEmoji,color:PAL[cities.length%PAL.length],country:dest,days:3};
-    cities.push(c);sAC(c);sShowAdd(false);sNewName("");
+    const c={id: Date.now(), name:newName,emoji:newEmoji,color:PAL[cities.length%PAL.length],country:dest,days:3};
+    sAC(c);sShowAdd(false);sNewName("");
   };
 
-  // Calendar follows theme
   const cBg=T.calBg,cCell=T.calCell,cEmpty=T.calEmpty,cText=T.calText,cDow=T.calDow;
 
   return(
     <div style={{position:"fixed",inset:0,background:cBg,display:"flex",flexDirection:"column",zIndex:500,fontFamily:"'DM Sans',system-ui,sans-serif"}}>
-      {/* Header */}
       <div style={{background:T.bgNav,padding:"11px 16px 8px",flexShrink:0,display:"flex",alignItems:"center",gap:12}}>
         <button onClick={onBack} style={{background:"rgba(255,255,255,.1)",border:"none",borderRadius:"50%",width:36,height:36,color:"white",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>
         <div style={{flex:1}}><div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:16,fontWeight:900,color:"white"}}>{MONTHS[month]} {year}</div><div style={{fontSize:9,color:T.gold,letterSpacing:2,fontWeight:700}}>TOCA PARA ASIGNAR DÍAS</div></div>
         {allowAddCity&&<button onClick={()=>sShowAdd(true)} style={{background:T.gold,border:"none",borderRadius:20,height:30,padding:"0 12px",color:"white",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Ciudad</button>}
       </div>
-      {/* City pills */}
       <div style={{padding:"6px 12px 4px",flexShrink:0,background:T.bgNav}}>
         <div style={{display:"flex",gap:5,overflowX:"auto",paddingBottom:2}}>
           {cities.map((c,i)=>{
@@ -1283,11 +1241,9 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
         </div>
         {activeCity&&<div style={{fontSize:9,color:activeCity.color,marginTop:3,fontWeight:600,paddingLeft:2}}>Tocando días de {activeCity.name} · toca de nuevo para quitar</div>}
       </div>
-      {/* DOW */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,flexShrink:0,marginBottom:1}}>
         {["L","M","X","J","V","S","D"].map(d=><div key={d} style={{background:cDow,color:T.calDowText,textAlign:"center",padding:"5px 0",fontSize:9,fontWeight:700,letterSpacing:1.5}}>{d}</div>)}
       </div>
-      {/* Grid */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,flex:1,minHeight:0}}>
         {Array(fd).fill(null).map((_,i)=><div key={`e${i}`} style={{background:cEmpty}}/>)}
         {Array(numDays).fill(null).map((_,i)=>{
@@ -1308,7 +1264,6 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
       <div style={{padding:"10px 16px 22px",flexShrink:0,borderTop:`1px solid ${T.border}`,background:cBg}}>
         <button onClick={onConfirm} style={{width:"100%",background:T.gold,border:"none",borderRadius:14,padding:"14px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 24px ${T.gold}50`}}>✓ Crear calendario</button>
       </div>
-      {/* Add city modal */}
       {showAdd&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>sShowAdd(false)}>
           <div style={{background:T.sheet,borderRadius:20,padding:22,width:"100%",maxWidth:340,boxShadow:"0 16px 50px rgba(0,0,0,.4)"}} onClick={e=>e.stopPropagation()}>
@@ -1352,7 +1307,7 @@ function SetupWizard({T,onCancel,onDone}){
   const afterDate=(y,m)=>{
     sYear(y);sMonth(m);
     if(pendingTpl){
-      const cs=pendingTpl.cities.map((c,i)=>({...c,color:c.color||PAL[i%PAL.length],country:pendingTpl.dest}));
+      const cs=pendingTpl.cities.map((c,i)=>({...c,id: Date.now()+i, color:c.color||PAL[i%PAL.length],country:pendingTpl.dest}));
       sCities(cs);let cur=1;const a={};
       cs.forEach(c=>{const d=Math.min(c.days||4,dim(y,m)-cur+1);if(d>0){a[c.name]={from:cur,to:Math.min(cur+d-1,dim(y,m))};cur+=d;}});
       sAsgn(a);sAC(cs[0]||null);sStep(3);
@@ -1373,9 +1328,9 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
     sLoading(false);
   },[dest,month,year]);
 
-  useEffect(()=>{if(step===2)getSugg();},[step]);
+  useEffect(()=>{if(step===2)getSugg();},[step, getSugg]);
 
-  const toggleCity=c=>sSel(s=>s.find(x=>x.name===c.name)?s.filter(x=>x.name!==c.name):[...s,{...c,color:PAL[s.length%PAL.length],country:dest}]);
+  const toggleCity=c=>sSel(s=>s.find(x=>x.name===c.name)?s.filter(x=>x.name!==c.name):[...s,{...c,id: Date.now(), color:PAL[s.length%PAL.length],country:dest}]);
 
   const buildDays=()=>{
     const cs=[...selected];sCities(cs);let cur=1;const a={};
@@ -1393,7 +1348,6 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
     onDone({dest:dest||pendingTpl?.dest||"",year,month,cities:cs});
   };
 
-  // Step 0: Start
   if(step===0)return(
     <div style={{position:"fixed",inset:0,background:T.bg,display:"flex",flexDirection:"column",zIndex:500,overflowY:"auto"}}>
       <div style={{background:T.bgNav,padding:"14px 18px",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
@@ -1427,10 +1381,8 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
     </div>
   );
 
-  // Step 1: Date
   if(step===1)return <DatePicker title={pendingTpl?pendingTpl.label:dest} sub={pendingTpl?"ELIGE AÑO Y MES":"ELIGE FECHA"} T={T} onBack={()=>sStep(0)} onNext={afterDate}/>;
 
-  // Step 2: AI city picker
   if(step===2)return(
     <div style={{position:"fixed",inset:0,background:T.bg,display:"flex",flexDirection:"column",zIndex:500}}>
       <div style={{background:T.bgNav,padding:"14px 18px 10px",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
@@ -1461,7 +1413,6 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
     </div>
   );
 
-  // Step 3: Day picker
   if(step===3)return(
     <DayPickerCal year={year} month={month} cities={cities} asgn={asgn} sAsgn={sAsgn}
       activeCity={activeCity} sAC={sAC} T={T}
@@ -1488,8 +1439,8 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
   const[showFlights,sShowFlights]=useState(false);
   const[showShare,sShowShare]=useState(false);
 
-  useEffect(()=>{if(trips.length>0&&!activeTripId)sATI(trips[0].id);if(trips.length===0)sATI(null);},[trips.length]);
-  useEffect(()=>{const t=trips.find(x=>x.id===activeTripId);if(t){sCY(t.year);sCM(t.month);}},[activeTripId]);
+  useEffect(()=>{if(trips.length>0&&!activeTripId)sATI(trips[0].id);if(trips.length===0)sATI(null);},[trips, activeTripId]);
+  useEffect(()=>{const t=trips.find(x=>x.id===activeTripId);if(t){sCY(t.year);sCM(t.month);}},[activeTripId, trips]);
 
   const activeTrip=trips.find(x=>x.id===activeTripId)||null;
   const allCities=activeTrip?activeTrip.cities:[];
@@ -1505,15 +1456,12 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
   const trasladoOfDay=useCallback(day=>{
     const d=mkiso(calYear,calMonth,day);
 
-    // 1. Exact ISO date match (from type="date" input → always YYYY-MM-DD)
     const byDate=traslados.find(t=>t.date===d);
     if(byDate) return byDate;
 
-    // 2. City transition: this day is the last day of one city AND first day of next
     const dep=allCities.find(c=>c.to===d);
     const arr=allCities.find(c=>c.from===d);
     if(dep&&arr){
-      // Find a traslado whose from/to match those city names (partial, case-insensitive)
       const linked=traslados.find(t=>{
         const tf=t.from.toLowerCase(); const tt=t.to.toLowerCase();
         const df=dep.name.toLowerCase(); const da=arr.name.toLowerCase();
@@ -1522,31 +1470,28 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
       return linked||{type:"avión",synthetic:true};
     }
 
-    // 3. Traslado date falls on this day (legacy formats: "19.06", "19/06", "19-06")
     const legacyMatch=traslados.find(t=>{
       if(!t.date) return false;
-      // try parsing dd.mm or dd/mm or dd-mm with trip year/month
       const parts=t.date.split(/[.\-\/]/);
       if(parts.length===2){
         const td=+parts[0]; const tm=+parts[1];
         return td===day && tm===(calMonth+1);
       }
       if(parts.length===3){
-        // could be dd.mm.yyyy or yyyy-mm-dd (already handled above)
         const td=+parts[0]; const tm=+parts[1];
         return td===day && tm===(calMonth+1);
       }
       return false;
     });
     return legacyMatch||null;
-  },[traslados,allCities,calYear,calMonth]);
+  },[traslados,allCities,calMonth,calYear]);
 
   const isToday=day=>{const t=new Date();return t.getFullYear()===calYear&&t.getMonth()===calMonth&&t.getDate()===day;};
   const fd=fdow(calYear,calMonth);const numDays=dim(calYear,calMonth);
   const weather=activeTrip?getWeather(activeTrip.dest,calMonth):null;
   const CARDS=[
-    {id:"hotels",  icon:"🏨", label:"Hoteles"},
-    {id:"budget",  icon:"◈",  label:"Presupuesto"},
+    {id:"hotels",   icon:"🏨", label:"Hoteles"},
+    {id:"budget",   icon:"◈",  label:"Presupuesto"},
     {id:"traslados",icon:"✈", label:"Traslados"},
     {id:"notas",   icon:"✐",  label:"Notas"},
     {id:"map",     icon:"🗺",  label:"Mapa"},
@@ -1555,13 +1500,11 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
     {id:"share",   icon:"🔗",  label:"Compartir"},
   ];
 
-  // Calendar cell colours — follow theme
   const cBg=T.calBg, cEmpty=T.calEmpty, cDow=T.calDow;
 
   return(
     <div style={{position:"fixed",inset:0,background:cBg,display:"flex",flexDirection:"column",overflow:"hidden",fontFamily:"'DM Sans',system-ui,sans-serif"}}>
 
-      {/* TOP NAV */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 14px 0",flexShrink:0,background:T.bgNav}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:20,fontWeight:900,color:"white",letterSpacing:-.5}}>Voyager</span>
@@ -1580,7 +1523,6 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
         </div>
       </div>
 
-      {/* TRIP DROPDOWN */}
       {showTP&&(
         <div style={{position:"absolute",top:50,left:14,right:14,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:14,zIndex:100,overflow:"hidden",boxShadow:`0 8px 32px rgba(0,0,0,.2)`,animation:"fadeUp .15s ease"}}>
           {trips.map((t,i)=>(
@@ -1594,7 +1536,6 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
         </div>
       )}
 
-      {/* MONTH NAV + WEATHER */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 14px 3px",flexShrink:0,background:T.bgNav}}>
         <button onClick={()=>changeMonth(-1)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:"50%",width:28,height:28,color:"white",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
         <div style={{textAlign:"center",display:"flex",alignItems:"center",gap:8}}>
@@ -1607,7 +1548,6 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
         <button onClick={()=>changeMonth(1)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:"50%",width:28,height:28,color:"white",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
       </div>
 
-      {/* LEGEND */}
       {allCities.length>0&&(
         <div style={{display:"flex",gap:5,padding:"0 12px 3px",overflowX:"auto",flexShrink:0,background:T.bgNav}}>
           {allCities.map((c,i)=>(
@@ -1618,12 +1558,10 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
         </div>
       )}
 
-      {/* DOW HEADERS */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,flexShrink:0,marginBottom:1}}>
         {["L","M","X","J","V","S","D"].map(d=><div key={d} style={{background:cDow,color:T.calDowText,textAlign:"center",padding:"4px 0",fontSize:9,fontWeight:700,letterSpacing:1.5}}>{d}</div>)}
       </div>
 
-      {/* DAY GRID */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,flex:1,minHeight:0}}>
         {Array(fd).fill(null).map((_,i)=><div key={`e${i}`} style={{background:cEmpty}}/>)}
         {Array(numDays).fill(null).map((_,i)=>{
@@ -1633,24 +1571,13 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
           const todayMark=isToday(day);
           const borderCol=owners[0]?.color||(traslado?T.gold:todayMark?T.gold:T.calBorder);
 
-          // Determine if this is a "traslado day" — departure city top, icon middle, arrival bottom
-          // This happens when: traslado has explicit date=this day, OR it's a city transition day
           const isTrasladoDay = !!traslado;
-          // Find which city departs and which arrives on this day
           const d_iso = mkiso(calYear,calMonth,day);
-          const departureCity = allCities.find(c=>c.to===d_iso);   // last day of this city
-          const arrivalCity   = allCities.find(c=>c.from===d_iso); // first day of next city
+          const departureCity = allCities.find(c=>c.to===d_iso);   
+          const arrivalCity   = allCities.find(c=>c.from===d_iso); 
 
-          // If there's a traslado with explicit date but no city range, look up by city name
           const tFrom = traslado ? (departureCity || allCities.find(c=>c.name.toLowerCase().includes((traslado.from||"").toLowerCase().slice(0,5)))) : null;
           const tTo   = traslado ? (arrivalCity   || allCities.find(c=>c.name.toLowerCase().includes((traslado.to||"").toLowerCase().slice(0,5)))) : null;
-
-          // Layout decision:
-          // A) 2+ owners (already handled) → top/icon/bottom split with both cities
-          // B) 1 owner + traslado with arrival → split: owner top, icon, arrival bottom
-          // C) 1 owner, no arrival traslado → single city cell with icon at bottom
-          // D) 0 owners + traslado → departure name top (from traslado text), icon, arrival name bottom
-          // E) 0 owners, no traslado → empty
 
           const showSplit = owners.length>=2 ||
             (isTrasladoDay && (arrivalCity || (traslado&&!traslado.synthetic&&traslado.to)));
@@ -1666,29 +1593,24 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
               onMouseEnter={e=>{if(owners.length||isTrasladoDay)e.currentTarget.style.opacity=".78";}}
               onMouseLeave={e=>{e.currentTarget.style.opacity="1";}}>
 
-              {/* EMPTY — no city, no traslado */}
               {!showSplit && owners.length===0 && !isTrasladoDay && (
                 <div style={{flex:1,background:cEmpty,padding:"4px 3px",display:"flex",flexDirection:"column"}}>
                   <div style={{fontSize:9,fontWeight:700,color:T.calText,opacity:.3,lineHeight:1}}>{day}</div>
                 </div>
               )}
 
-              {/* SINGLE CITY, no split needed */}
               {!showSplit && owners.length===1 && (
                 <div onClick={()=>sSC(owners[0])} style={{flex:1,background:`${owners[0].color}28`,padding:"4px 3px",display:"flex",flexDirection:"column"}}>
                   <div style={{fontSize:9,fontWeight:700,color:todayMark?T.gold:T.calText,lineHeight:1,flexShrink:0}}>{day}</div>
                   <div style={{fontSize:"clamp(5px,1.1vw,7px)",color:owners[0].color,fontWeight:700,lineHeight:1.2,marginTop:2,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{owners[0].emoji} {owners[0].name}</div>
-                  {/* Traslado icon at bottom if exists but no split */}
                   {isTrasladoDay&&!arrivalCity&&(
                     <div style={{fontSize:9,textAlign:"center",marginTop:"auto",lineHeight:1,opacity:.8}}>{TI[traslado.type]||"✈"}</div>
                   )}
                 </div>
               )}
 
-              {/* SPLIT: top city / traslado icon / bottom city */}
               {showSplit && (
                 <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-                  {/* TOP — departure / first city */}
                   <div
                     onClick={e=>{e.stopPropagation();if(topCity)sSC(topCity);}}
                     style={{flex:1,background:topCity?`${topCity.color}30`:`${T.gold}18`,padding:"3px 3px 1px",display:"flex",flexDirection:"column",justifyContent:"space-between",borderBottom:`1px solid rgba(128,128,128,.2)`}}>
@@ -1698,12 +1620,10 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
                     </div>
                   </div>
 
-                  {/* MIDDLE — traslado icon */}
                   <div style={{textAlign:"center",fontSize:"clamp(7px,1.8vw,11px)",background:"rgba(0,0,0,.35)",lineHeight:"14px",flexShrink:0,color:"white"}}>
                     {TI[traslado?.type]||"✈"}
                   </div>
 
-                  {/* BOTTOM — arrival city */}
                   <div
                     onClick={e=>{e.stopPropagation();if(bottomCity)sSC(bottomCity);}}
                     style={{flex:1,background:bottomCity?`${bottomCity.color}30`:`${T.gold}18`,padding:"1px 3px",display:"flex",alignItems:"center"}}>
@@ -1719,7 +1639,6 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
         })}
       </div>
 
-      {/* 8 CARDS — 4×2 grid */}
       {activeTrip&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,padding:"6px 12px 10px",flexShrink:0,background:T.bgNav}}>
           {CARDS.map(card=>(
@@ -1742,12 +1661,11 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
 
       {trips.length===0&&<div style={{position:"absolute",bottom:40,left:0,right:0,textAlign:"center",pointerEvents:"none"}}><div style={{fontSize:13,color:T.inkMuted}}>Pulsa <strong style={{color:T.gold}}>+ Nuevo</strong> para crear tu primer viaje</div></div>}
 
-      {/* SHEETS */}
       {showMap&&activeTrip&&<MapView cities={allCities} T={T} onClose={()=>sShowMap(false)}/>}
       {showPDF&&activeTrip&&<ExportPDF trip={activeTrip} T={T} onClose={()=>sShowPDF(false)}/>}
       {showFlights&&activeTrip&&<FlightAlertsSheet trip={activeTrip} T={T} onClose={()=>sShowFlights(false)}/>}
       {showShare&&activeTrip&&<ShareSheet trip={activeTrip} T={T} onClose={()=>sShowShare(false)} onImportTrip={t=>{onAddTrip&&onAddTrip({...t,id:Date.now()});sShowShare(false);}}/>}
-      {showEdit&&activeTrip&&(()=>{
+      {showEdit&&activeTrip&&(()=>    {
         const initAsgn={};
         activeTrip.cities.forEach(c=>{const f=isoDay(c.from,activeTrip.year,activeTrip.month);const t2=isoDay(c.to,activeTrip.year,activeTrip.month);if(f&&t2)initAsgn[c.name]={from:f,to:t2};});
         const[editCities,setEC]=useState(activeTrip.cities.map(c=>({...c})));
@@ -1763,12 +1681,12 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
                 const updated=editCities.map(c=>{const r=editAsgn[c.name];if(!r)return c;return{...c,from:mkiso(activeTrip.year,activeTrip.month,r.from),to:mkiso(activeTrip.year,activeTrip.month,r.to),nights:r.to-r.from+1};});
                 onUpdateTrip({...activeTrip,cities:updated});sShowEdit(false);
               }}
-              allowAddCity dest={activeTrip.dest}/>
+              allowAddCity={false} dest={activeTrip.dest}/>
           </div>
         );
       })()}
-      {selCity&&activeTrip&&<CitySheet city={selCity} onClose={()=>sSC(null)} onBack={()=>sSC(null)} onUpdate={upd=>{const cities=activeTrip.cities.map(c=>c.id===upd.id?upd:c);onUpdateTrip({...activeTrip,cities});sSC(upd);}} T={T}/>}
-      {sheet==="hotels"&&activeTrip&&<HotelsSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
+      {selCity&&activeTrip&&<CitySheet city={selCity} onClose={()=>sSC(null)} onBack={()=>sSC(null)} onUpdate={upd=>{const updatedCities=activeTrip.cities.map(c=>c.id===upd.id?upd:c);onUpdateTrip({...activeTrip,cities: updatedCities});sSC(upd);}} T={T}/>}
+      {sheet       ==="hotels"&&activeTrip&&<HotelsSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
       {sheet==="budget"&&activeTrip&&<BudgetSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
       {sheet==="traslados"&&activeTrip&&<TrasladosSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
       {sheet==="notas"&&activeTrip&&<NotasSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
@@ -1777,7 +1695,7 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ROOT
+// ROOT EXPORT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function VoyagerApp(){
   const[dark,sDark]=useState(false);
@@ -1785,52 +1703,52 @@ export default function VoyagerApp(){
   const[screen,sScreen]=useState("landing");
   const T=dark?DARK:LIGHT;
 
-  // Persistent localStorage
   useEffect(()=>{
-    try{const s=localStorage.getItem("voyager_v1");if(s){const t=JSON.parse(s);sTrips(t);if(t.length>0)sScreen("home");}}catch(e){}
+    try{const s=localStorage.getItem("voyager_v1");if(s){const t=JSON.parse(s);sTrips(t);if(t.length>0)sScreen("home");}}catch(e){console.error(e);}
   },[]);
   useEffect(()=>{
-    try{localStorage.setItem("voyager_v1",JSON.stringify(trips));}catch(e){}
+    if(trips.length > 0) {
+      try{localStorage.setItem("voyager_v1",JSON.stringify(trips));}catch(e){console.error(e);}
+    }
   },[trips]);
 
   const addTrip=t=>{sTrips(p=>[...p,t]);sScreen("home");};
   const updTrip=t=>sTrips(p=>p.map(x=>x.id===t.id?t:x));
   const delTrip=id=>{sTrips(p=>{const n=p.filter(x=>x.id!==id);if(n.length===0)sScreen("landing");return n;});};
 
-  if(screen==="landing")return(
-    <div style={{position:"fixed",inset:0,background:T.bgNav,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',system-ui,sans-serif"}}>
-      <style>{CSS+`input,select,textarea{color-scheme:${dark?"dark":"light"}}`}</style>
-      <div style={{position:"absolute",width:380,height:380,borderRadius:"50%",background:`radial-gradient(circle,${T.gold}14,transparent 65%)`,pointerEvents:"none"}}/>
-      <div style={{textAlign:"center",position:"relative",zIndex:1,padding:"0 40px"}}>
-        <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:"clamp(52px,16vw,88px)",fontWeight:900,color:"white",letterSpacing:-4,lineHeight:1,marginBottom:4}}>voyager</div>
-        <div style={{fontSize:10,color:T.gold,letterSpacing:5,fontWeight:700,marginBottom:48}}>✦ AI TRAVEL PLANNER</div>
-        <button onClick={()=>sScreen("setup")}
-          style={{background:T.gold,border:"none",borderRadius:16,padding:"15px 34px",color:"white",fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:10,boxShadow:`0 8px 32px ${T.gold}50`,transition:"transform .18s"}}
-          onMouseEnter={e=>e.currentTarget.style.transform="scale(1.04)"}
-          onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
-          <span style={{fontSize:20}}>+</span> nuevo itinerario
-        </button>
-        <div style={{marginTop:36}}>
-          <button onClick={()=>sDark(d=>!d)} style={{background:"rgba(255,255,255,.1)",border:"none",borderRadius:"50%",width:36,height:36,color:"rgba(255,255,255,.7)",fontSize:16,cursor:"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
-            {dark?"☀️":"🌙"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  if(screen==="setup")return(
-    <>
-      <style>{CSS+`input,select,textarea{color-scheme:${dark?"dark":"light"}}`}</style>
-      <SetupWizard T={T} onCancel={()=>sScreen(trips.length?"home":"landing")}
-        onDone={({dest,year,month,cities})=>addTrip({id:Date.now(),name:`Viaje a ${dest}`,dest,year,month,cities,budget:{total:"",items:[]},traslados:[],notes:""})}/>
-    </>
-  );
-
   return(
     <>
       <style>{CSS+`input,select,textarea{color-scheme:${dark?"dark":"light"}}`}</style>
-      <HomeScreen trips={trips} dark={dark} setDark={sDark} onNewTrip={()=>sScreen("setup")} onUpdateTrip={updTrip} onDeleteTrip={delTrip} onAddTrip={addTrip} T={T}/>
+      
+      {screen==="landing" && (
+        <div style={{position:"fixed",inset:0,background:T.bgNav,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+          <div style={{position:"absolute",width:380,height:380,borderRadius:"50%",background:`radial-gradient(circle,${T.gold}14,transparent 65%)`,pointerEvents:"none"}}/>
+          <div style={{textAlign:"center",position:"relative",zIndex:1,padding:"0 40px"}}>
+            <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:"clamp(52px,16vw,88px)",fontWeight:900,color:"white",letterSpacing:-4,lineHeight:1,marginBottom:4}}>voyager</div>
+            <div style={{fontSize:10,color:T.gold,letterSpacing:5,fontWeight:700,marginBottom:48}}>✦ AI TRAVEL PLANNER</div>
+            <button onClick={()=>sScreen("setup")}
+              style={{background:T.gold,border:"none",borderRadius:16,padding:"15px 34px",color:"white",fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:10,boxShadow:`0 8px 32px ${T.gold}50`,transition:"transform .18s"}}
+              onMouseEnter={e=>e.currentTarget.style.transform="scale(1.04)"}
+              onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+              <span style={{fontSize:20}}>+</span> nuevo itinerario
+            </button>
+            <div style={{marginTop:36}}>
+              <button onClick={()=>sDark(d=>!d)} style={{background:"rgba(255,255,255,.1)",border:"none",borderRadius:"50%",width:36,height:36,color:"rgba(255,255,255,.7)",fontSize:16,cursor:"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
+                {dark?"☀️":"🌙"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {screen==="setup" && (
+        <SetupWizard T={T} onCancel={()=>sScreen(trips.length?"home":"landing")}
+          onDone={({dest,year,month,cities})=>addTrip({id:Date.now(),name:`Viaje a ${dest}`,dest,year,month,cities,budget:{total:"",items:[]},traslados:[],notes:""})}/>
+      )}
+
+      {screen==="home" && (
+        <HomeScreen trips={trips} dark={dark} setDark={sDark} onNewTrip={()=>sScreen("setup")} onUpdateTrip={updTrip} onDeleteTrip={delTrip} onAddTrip={addTrip} T={T}/>
+      )}
     </>
   );
 }
