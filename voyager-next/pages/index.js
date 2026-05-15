@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI HELPER – calls /api/ai (server-side route) which calls Gemini securely.
@@ -230,7 +231,7 @@ function Expand({label,sub,desc,col,T}){
   const[o,sO]=useState(false);
   return(
     <div style={{borderBottom:`1px solid ${T.border}`}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",cursor:"pointer"}    } onClick={()=>sO(x=>!x)}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",cursor:"pointer"}} onClick={()=>sO(x=>!x)}>
         <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:T.ink}}>{label}</div>{sub&&<div style={{fontSize:11,color:col||T.gold,marginTop:2,fontWeight:600}}>{sub}</div>}</div>
         <span style={{fontSize:14,color:T.inkLight,marginLeft:8,display:"inline-block",transform:o?"rotate(90deg)":"none",transition:"transform .18s"}}>›</span>
       </div>
@@ -271,7 +272,7 @@ function WorldSearch({value,onChange,T}){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAP VIEW (Fixed initialisation and leak crashers)
+// MAP VIEW 
 // ─────────────────────────────────────────────────────────────────────────────
 function MapView({cities,T,onClose}){
   const mapRef = useRef(null);
@@ -304,7 +305,7 @@ function MapView({cities,T,onClose}){
   },[cities]);
 
   useEffect(()=>{
-    if(!coords || coords.length===0 || !mapRef.current) return;
+    if(typeof window === "undefined" || !coords || coords.length===0 || !mapRef.current) return;
     if(mapInst.current) return; 
 
     if(!document.getElementById("leaflet-css")){
@@ -324,7 +325,7 @@ function MapView({cities,T,onClose}){
     }
 
     function initMap(){
-      if(!mapRef.current) return;
+      if(!mapRef.current || typeof window === "undefined" || !window.L) return;
       const L = window.L;
       const center = [coords[0].lat, coords[0].lon];
       const map = L.map(mapRef.current,{zoomControl:true,scrollWheelZoom:true}).setView(center,5);
@@ -412,6 +413,7 @@ function ExportPDF({trip,T,onClose}){
   const [done,setDone] = useState(false);
 
   const generate = async () => {
+    if (typeof window === "undefined") return;
     setGenerating(true);
     try{
       if(!window.jspdf){
@@ -635,10 +637,12 @@ function FlightAlertsSheet({trip,T,onClose}){
   const [showKeyInput, setShowKeyInput] = useState(true);
 
   useEffect(() => {
-    const k = localStorage.getItem("avstack_key");
-    if(k) {
-      setApiKey(k);
-      setShowKeyInput(false);
+    if (typeof window !== "undefined") {
+      const k = localStorage.getItem("avstack_key");
+      if(k) {
+        setApiKey(k);
+        setShowKeyInput(false);
+      }
     }
   }, []);
 
@@ -677,7 +681,9 @@ function FlightAlertsSheet({trip,T,onClose}){
   };
 
   const saveKey = () => {
-    localStorage.setItem("avstack_key", apiKey);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("avstack_key", apiKey);
+    }
     setShowKeyInput(false);
     checkFlights();
   };
@@ -743,7 +749,7 @@ function FlightAlertsSheet({trip,T,onClose}){
               </div>
             ))}
             <button onClick={checkFlights} disabled={loading||!apiKey}
-              style={{width:"100%",background:apiKey&&!loading?T.bgNav:"#ccc",border:"none",borderRadius:12,padding:"12px",color:"white",fontWeight:700,fontSize:13,cursor:apiKey&&!loading?"pointer":"default",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:4}}>
+              style={{width:"100%",background:apiKey&&!loading?T.bgNav:"#ccc",border:"none",borderRadius:12,padding:"12px",color:"white",fontWeight:700,fontSize:13,cursor:"apiKey && !loading"?"pointer":"default",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:4}}>
               {loading?<><Spin c="white"/>Consultando…</>:<>🔄 Actualizar estado</>}
             </button>
           </>
@@ -766,22 +772,26 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
   const [showFbSetup, setShowFbSetup] = useState(true);
 
   useEffect(() => {
-    const url = localStorage.getItem("fb_url");
-    if(url) {
-      setFbUrl(url);
-      setShowFbSetup(false);
+    if (typeof window !== "undefined") {
+      const url = localStorage.getItem("fb_url");
+      if(url) {
+        setFbUrl(url);
+        setShowFbSetup(false);
+      }
     }
   }, []);
 
   const saveFb = () => {
     const url = fbUrl.trim().replace(/\/$/, "");
-    localStorage.setItem("fb_url", url);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fb_url", url);
+    }
     setShowFbSetup(false);
     setMsg("✅ Firebase configurado");
   };
 
   const pushTrip = async () => {
-    const url = localStorage.getItem("fb_url");
+    const url = typeof window !== "undefined" ? localStorage.getItem("fb_url") : null;
     if(!url){ setShowFbSetup(true); return; }
     setLoading(true); setMsg("");
     try{
@@ -800,7 +810,7 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
   };
 
   const pullTrip = async () => {
-    const url = localStorage.getItem("fb_url");
+    const url = typeof window !== "undefined" ? localStorage.getItem("fb_url") : null;
     if(!url){ setShowFbSetup(true); return; }
     if(!importCode.trim()){ setMsg("Introduce un código de viaje."); return; }
     setLoading(true); setMsg("");
@@ -825,7 +835,7 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
           <div style={{background:T.bgMuted,borderRadius:12,padding:16,marginBottom:16}}>
             <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:6}}>Conectar Firebase (gratis)</div>
             <div style={{fontSize:12,color:T.inkMuted,marginBottom:12,lineHeight:1.7}}>
-              1. Crea un proyecto en Firebase -> Realtime Database.<br/>
+              1. Crea un proyecto en Firebase -&gt; Realtime Database.<br/>
               2. Reglas de seguridad: pon read: true, write: true.<br/>
               3. Copia la URL de la base de datos:
             </div>
@@ -897,7 +907,7 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
       .then(t=>{try{const p=JSON.parse(t);const u={...d,...p};sD(u);onUpdate({...city,...u});}catch(e){console.error(e);}sL(false);})
       .catch(()=>sL(false));
     }
-  }, [city.id]); // Fixed dependencies to clear strict linters
+  }, [city.id]); 
 
   const upd=(k,v)=>{const nd={...d,[k]:v};sD(nd);onUpdate({...city,...nd});};
   const col=city.color||"#B45309";
@@ -1182,7 +1192,7 @@ function DatePicker({title,sub,T,onBack,onNext}){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DAY PICKER CALENDAR (Safe immutable props handler)
+// DAY PICKER CALENDAR 
 // ─────────────────────────────────────────────────────────────────────────────
 function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onConfirm,allowAddCity,dest}){
   const numDays=dim(year,month);const fd=fdow(year,month);
@@ -1695,9 +1705,9 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ROOT EXPORT
+// BASE APPLICATION CONTAINER
 // ─────────────────────────────────────────────────────────────────────────────
-export default function VoyagerApp(){
+function VoyagerApp(){
   const[dark,sDark]=useState(false);
   const[trips,sTrips]=useState([]);
   const[screen,sScreen]=useState("landing");
@@ -1752,3 +1762,10 @@ export default function VoyagerApp(){
     </>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SAFE EXPORT - FOR NEXT.JS BUILD COMPLIANCE
+// ─────────────────────────────────────────────────────────────────────────────
+export default dynamic(() => Promise.resolve(VoyagerApp), {
+  ssr: false,
+});
