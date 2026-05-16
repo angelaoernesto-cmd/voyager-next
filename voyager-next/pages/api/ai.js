@@ -1,8 +1,18 @@
 // pages/api/ai.js
 // This runs SERVER-SIDE on Vercel — the API key is never sent to the browser.
-// Supports: Google Gemini 1.5 Flash (free tier, no credit card required)
 
 export default async function handler(req, res) {
+  // 1. CONFIGURACIÓN DE CABECERAS CORS (Para que tu móvil pueda conectar)
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+
+  // Responder a la petición de control de los móviles (preflight)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -31,7 +41,7 @@ export default async function handler(req, res) {
           generationConfig: {
             temperature: 0.4,
             maxOutputTokens: 1500,
-            responseMimeType: "application/json",  // Gemini returns clean JSON directly
+            responseMimeType: "application/json",
           },
           systemInstruction: {
             parts: [{
@@ -51,7 +61,7 @@ export default async function handler(req, res) {
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // Clean any accidental markdown fences
+    // Limpieza de cualquier formato markdown accidental
     const clean = text.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
 
     return res.status(200).json({ text: clean });
