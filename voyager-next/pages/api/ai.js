@@ -1,33 +1,34 @@
 // pages/api/ai.js
-// This runs SERVER-SIDE on Vercel — the API key is never sent to the browser.
+// Ejecutado en el servidor (Vercel) — Protege tu clave API para que nadie la robe.
 
 export default async function handler(req, res) {
-  // 1. CONFIGURACIÓN DE CABECERAS CORS (Para que tu móvil pueda conectar)
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CONFIGURACIÓN CORRECTA DE CABECERAS CORS para móviles Android/Capacitor
+  // Nota: Si Allow-Credentials es true, Allow-Origin no puede ser '*'. Usamos el origen de la petición o '*'.
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
-
-  // Responder a la petición de control de los móviles (preflight)
+  
+  // Responder de inmediato a las peticiones de control pre-vuelo (OPTIONS) de los móviles
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Método no permitido" });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({
-      error: "GEMINI_API_KEY not configured",
-      hint: "Add GEMINI_API_KEY in Vercel → Settings → Environment Variables"
+      error: "GEMINI_API_KEY no configurada",
+      hint: "Añade GEMINI_API_KEY en Vercel -> Settings -> Environment Variables"
     });
   }
 
   const { prompt } = req.body;
   if (!prompt) {
-    return res.status(400).json({ error: "Missing prompt" });
+    return res.status(400).json({ error: "Falta el prompt" });
   }
 
   try {
@@ -55,19 +56,19 @@ export default async function handler(req, res) {
     if (!response.ok) {
       const err = await response.text();
       console.error("Gemini API error:", err);
-      return res.status(response.status).json({ error: "Gemini API error", detail: err });
+      return res.status(response.status).json({ error: "Error en la API de Gemini", detail: err });
     }
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // Limpieza de cualquier formato markdown accidental
+    // Limpieza estricta de marcas markdown ```json accidentalmente devueltas
     const clean = text.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
 
     return res.status(200).json({ text: clean });
 
   } catch (err) {
     console.error("Server error:", err);
-    return res.status(500).json({ error: "Internal server error", detail: err.message });
+    return res.status(500).json({ error: "Error interno del servidor", detail: err.message });
   }
 }
