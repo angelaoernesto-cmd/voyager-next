@@ -2,13 +2,11 @@
 // Ejecutado 100% en el servidor de Vercel para proteger tu GEMINI_API_KEY.
 
 export default async function handler(req, res) {
-  // Configuración dinámica obligatoria de CORS para permitir conexiones de la APK
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  // Responder inmediatamente al preflight check (OPTIONS) de Android
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -56,8 +54,6 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    // Limpieza estricta de marcas markdown ```json por si acaso
     const clean = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
 
     return res.status(200).json({ text: clean });
