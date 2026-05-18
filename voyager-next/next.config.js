@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Si compila en Vercel, desactiva 'export' para que cree la API.
-  // Si compila en tu ordenador, activa 'export' para generar la carpeta 'out' del móvil.
+  // Si compila en Vercel, desactiva 'export' para levantar la API en la nube
   output: process.env.VERCEL ? undefined : 'export',
   reactStrictMode: false,
   images: {
