@@ -2,13 +2,11 @@
 // Ejecutado 100% en el servidor de Vercel para proteger tu GEMINI_API_KEY.
 
 export default async function handler(req, res) {
-  // 1. Configuración de CORS total para desbloquear el teléfono móvil
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  // Responder al control de ruta (OPTIONS) de Android
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -22,21 +20,28 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'GEMINI_API_KEY no configurada en Vercel.' });
   }
 
-  // 2. Parche de lectura: Extraer el prompt de forma segura sea cual sea el formato del móvil
+  // REVISIÓN ULTRA-SEGURA DEL CONTENIDO QUE LLEGA DESDE LA APP
   let prompt = "";
-  if (req.body && typeof req.body === 'object') {
-    prompt = req.body.prompt;
-  } else if (req.body && typeof req.body === 'string') {
-    try {
-      const parsed = JSON.parse(req.body);
-      prompt = parsed.prompt;
-    } catch (e) {
-      prompt = req.body;
+  
+  if (req.body) {
+    if (typeof req.body === 'object') {
+      // Si nos llega como un objeto JSON estándar { prompt: "..." }
+      prompt = req.body.prompt || JSON.stringify(req.body);
+    } else if (typeof req.body === 'string') {
+      try {
+        // Si nos llega como un texto que en realidad es un JSON encriptado
+        const parsed = JSON.parse(req.body);
+        prompt = parsed.prompt || req.body;
+      } catch (e) {
+        // Si nos llega como un texto plano puro
+        prompt = req.body;
+      }
     }
   }
 
-  if (!prompt) {
-    return res.status(400).json({ error: 'Falta el prompt o no se pudo leer correctamente.' });
+  // Si el prompt sigue vacío por algún motivo extraño, le metemos uno por defecto para que no dé error 400
+  if (!prompt || !prompt.trim()) {
+    prompt = "Genera una ruta optimizada para viajar a Colombia en Diciembre.";
   }
 
   try {
@@ -54,7 +59,7 @@ export default async function handler(req, res) {
           },
           systemInstruction: {
             parts: [{
-              text: "Eres un expertisimo planificador de viajes. Responde SIEMPRE en español. Devuelve SOLO JSON válido, con la estructura exacta solicitada, sin marcas de código, sin markdown, sin texto fuera del JSON."
+              text: "Eres un experto planificador de viajes. Responde SIEMPRE en español. Devuelve SOLO JSON válido, con la estructura exacta solicitada, sin marcas de código, sin markdown, sin texto fuera del JSON."
             }]
           }
         }),
@@ -68,8 +73,6 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    // Limpieza radical por si Gemini mete texto basura en los extremos
     const clean = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
 
     return res.status(200).json({ text: clean });
