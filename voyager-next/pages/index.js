@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 // AI HELPER – calls /api/ai (server-side route) which calls Gemini securely.
 // ─────────────────────────────────────────────────────────────────────────────
 async function callAI(prompt) {
-  // Apunta directamente a tu dominio de producción oficial de Vercel (evita enlaces temporales obsoletos)
   const res = await fetch("https://voyager-next.vercel.app/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -207,7 +206,7 @@ const Handle = ({T}) => <div style={{display:"flex",justifyContent:"center",padd
 function Sheet({onClose,children,T,zi=200}){
   return(
     <div style={{position:"fixed",inset:0,background:T.overlay,zIndex:zi,display:"flex",alignItems:"flex-end",backdropFilter:"blur(8px)"}} onClick={onClose}>
-      <div style={{width:"100%",maxHeight:"94vh",background:T.sheet,borderRadius:"20px 20px 0 0",display:"flex",flexDirection:"column",boxShadow:"0 -8px 60px rgba(0,0,0,.3)",overflow:"hidden",animation:"fadeUp .2s ease"} \_onClick={e=>e.stopPropagation()}>
+      <div style={{width:"100%",maxHeight:"94vh",background:T.sheet,borderRadius:"20px 20px 0 0",display:"flex",flexDirection:"column",boxShadow:"0 -8px 60px rgba(0,0,0,.3)",overflow:"hidden",animation:"fadeUp .2s ease"}} onClick={e=>e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -232,7 +231,7 @@ function Expand({label,sub,desc,col,T}){
   const[o,sO]=useState(false);
   return(
     <div style={{borderBottom:`1px solid ${T.border}`}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",cursor:"pointer"} \_onClick={()=>sO(x=>!x)}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",cursor:"pointer"}} onClick={()=>sO(x=>!x)}>
         <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:T.ink}}>{label}</div>{sub&&<div style={{fontSize:11,color:col||T.gold,marginTop:2,fontWeight:600}}>{sub}</div>}</div>
         <span style={{fontSize:14,color:T.inkLight,marginLeft:8,display:"inline-block",transform:o?"rotate(90deg)":"none",transition:"transform .18s"}}>›</span>
       </div>
@@ -344,7 +343,7 @@ function MapView({cities,T,onClose}){
       coords.forEach(({lat,lon,city},i)=>{
         const color = city.color||"#B45309";
         const icon = L.divIcon({
-          html:`<div style="background:${color};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,.4);border:2.5px solid white;">${city.emoji||"📍"}</div>`,
+          html:`<div style="background:${color};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justifycontent:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,.4);border:2.5px solid white;">${city.emoji||"📍"}</div>`,
           iconSize:[32,32], iconAnchor:[16,16], className:""
         });
         const marker = L.marker([lat,lon],{icon}).addTo(map);
@@ -388,7 +387,7 @@ function MapView({cities,T,onClose}){
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"nowrap"}}>
           {cities.map((c,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
-              <div style={{background:`${c.color}18`,border:`1px solid ${c.color}55`,borderRadius:20,padding:"3px 9px",display:"flex",alignItems:"center",gap:4,cursor:"pointer"} \_onClick={()=>{
+              <div style={{background:`${c.color}18`,border:`1px solid ${c.color}55`,borderRadius:20,padding:"3px 9px",display:"flex",alignItems:"center",gap:4,cursor:"pointer"}} onClick={()=>{
                 if(coords&&mapInst.current){
                   const m=coords.find(x=>x.city.name===c.name);
                   if(m)mapInst.current.flyTo([m.lat,m.lon],10,{animate:true,duration:1.2});
@@ -866,7 +865,7 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
             </div>
           )}
           <button onClick={pushTrip} disabled={loading}
-            style={{width:"100%",background:loading?"#ccc":T.bgNav,border:"none",borderRadius:12,padding:"13px",color:"white",fontWeight:700,fontSize:14,cursor:loading?"default":"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            style={{width:"100%",background:loading?"#ccc":T.bgNav,border:"none",borderRadius:12,padding:"13px",color:"white",fontWeight:700,fontSize:14,cursor:"loading"?"default":"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
             {loading?<><Spin c="white"/>Publicando…</>:<>📤 {shareCode?"Actualizar":"Publicar"} viaje</>}
           </button>
         </>}
@@ -906,7 +905,6 @@ JSON exacto (sin ningún texto adicional):
 {"desc":"2-3 frases del destino","attractions":[{"name":"emoji+nombre","price":"precio €","desc":"2 frases"}],"food":[{"name":"emoji+nombre del plato","desc":"descripción y dónde probarlo, 2 frases"}],"transport":"cómo llegar y moverse (2 frases)"}
 Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de comida.`)
       .then(t=>{try{
-        // Se añade soporte de limpieza de marcas markdown en llamadas secundarias por seguridad
         const textLimpio = t.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
         const p=JSON.parse(textLimpio);
         const u={...d,...p};
@@ -943,7 +941,7 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
         </div>
       </div>
       <div style={{display:"flex",borderBottom:`1px solid ${T.tabBorder}`,flexShrink:0,background:T.sheet}}>
-        {TABS.map(([k,l])=><button key={k} style={{flex:1,padding:"10px 4px",background:"none",border:"none",borderBottom:tab===k?`2.5px solid ${col}`:"2.5px solid transparent",fontSize:11,cursor:"pointer",color:tab===k?col:T.inkMuted,fontWeight:tab===k?700:500,fontFamily:"inherit",transition:"color .15s"} \_onClick={()=>sT(k)}>{l}</button>)}
+        {TABS.map(([k,l])=><button key={k} style={{flex:1,padding:"10px 4px",background:"none",border:"none",borderBottom:tab===k?`2.5px solid ${col}`:"2.5px solid transparent",fontSize:11,cursor:"pointer",color:tab===k?col:T.inkMuted,fontWeight:tab===k?700:500,fontFamily:"inherit",transition:"color .15s"}} onClick={()=>sT(k)}>{l}</button>)}
       </div>
       <div style={{overflowY:"auto",padding:"16px 16px 36px",flex:1,background:T.sheet}}>
         {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"36px 0",color:T.inkMuted}}><Spin c={col}/><div style={{fontSize:13}}>✦ Generando con IA…</div></div>}
@@ -1023,7 +1021,7 @@ function BudgetSheet({trip,onUpdateTrip,onClose,T}){
     <div style={{overflowY:"auto",flex:1,padding:"16px 16px 36px",background:T.sheet}}>
       <div style={{background:T.bgMuted,borderRadius:12,padding:14,marginBottom:16}}>
         <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:6,fontWeight:700}}>TOTAL</div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:700,color:T.gold}}>€</span><input value={total} onChange={e=>{save(items,e.target.value);}} placeholder="0" style={{background:"transparent",border:"none",outline:"none",fontSize:26,fontWeight:800,color:T.ink,fontFamily:"'Playfair Display',Georgia,serif",width:"100%"}}/></div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:700,color:T.gold}}>€</span><input value={total} onChange={e=>save(items,e.target.value)} placeholder="0" style={{background:"transparent",border:"none",outline:"none",fontSize:26,fontWeight:800,color:T.ink,fontFamily:"'Playfair Display',Georgia,serif",width:"100%"}}/></div>
         {totalN>0&&<><div style={{height:4,background:T.border,borderRadius:2,marginTop:10,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:pct>90?T.red:T.gold,borderRadius:2,transition:"width .5s"}}/></div><div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.inkMuted,marginTop:5}}><span>Gastado: <strong style={{color:pct>90?T.red:T.green}}>€{spent.toFixed(0)}</strong></span><span>Disponible: <strong style={{color:T.ink}}>€{(totalN-spent).toFixed(0)}</strong></span></div></>}
       </div>
       {items.map(item=>(
@@ -1035,12 +1033,12 @@ function BudgetSheet({trip,onUpdateTrip,onClose,T}){
         </div>
       ))}
       <div style={{marginTop:14,background:T.bgMuted,borderRadius:12,padding:14}}>
-        <input value={ni.label} onChange={e=>setNi(p=>({...p,label:e.target.value}))} placeholder="Descripción"
+        <input value={ni.label} onChange={e=>sNi(p=>({...p,label:e.target.value}))} placeholder="Descripción"
           style={{width:"100%",background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 11px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
         <div style={{display:"flex",gap:8,marginBottom:8}}>
-          <input value={ni.amount} onChange={e=>setNi(p=>({...p,amount:e.target.value}))} placeholder="€" type="number"
+          <input value={ni.amount} onChange={e=>sNi(p=>({...p,amount:e.target.value}))} placeholder="€" type="number"
             style={{flex:1,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 11px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none"}}/>
-          <select value={ni.cat} onChange={e=>setNi(p=>({...p,cat:e.target.value}))}
+          <select value={ni.cat} onChange={e=>sNi(p=>({...p,cat:e.target.value}))}
             style={{flex:1,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 11px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none"}}>
             {Object.keys(cats).map(c=><option key={c} value={c}>{cats[c]} {c}</option>)}
           </select>
@@ -1111,16 +1109,16 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
         <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:12,fontWeight:700}}>NUEVO TRASLADO</div>
 
         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-          <input value={ni.from} onChange={e=>setNi(p=>({...p,from:e.target.value}))} placeholder="Origen"
+          <input value={ni.from} onChange={e=>sNi(p=>({...p,from:e.target.value}))} placeholder="Origen"
             style={{...inputStyle,flex:1}}/>
           <span style={{color:T.gold,fontSize:16,fontWeight:700,flexShrink:0}}>→</span>
-          <input value={ni.to} onChange={e=>setNi(p=>({...p,to:e.target.value}))} placeholder="Destino"
+          <input value={ni.to} onChange={e=>sNi(p=>({...p,to:e.target.value}))} placeholder="Destino"
             style={{...inputStyle,flex:1}}/>
         </div>
 
         <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
           {Object.entries(TI).map(([k,icon])=>(
-            <button key={k} onClick={()=>setNi(p=>({...p,type:k}))}
+            <button key={k} onClick={()=>sNi(p=>({...p,type:k}))}
               style={{padding:"5px 10px",borderRadius:20,border:`1.5px solid ${ni.type===k?T.gold:T.border}`,background:ni.type===k?T.gold:"transparent",color:ni.type===k?"white":T.inkMuted,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,transition:"all .14s"}}>
               {icon} {k}
             </button>
@@ -1132,16 +1130,16 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
           <input
             type="date"
             value={ni.date}
-            onChange={e=>setNi(p=>({...p,date:e.target.value}))}
+            onChange={e=>sNi(p=>({...p,date:e.target.value}))}
             min={trip.cities?.[0]?.from||""}
             max={trip.cities?.[trip.cities.length-1]?.to||""}
             style={{...inputStyle,colorScheme:T === DARK ? "dark" : "light"}}/>
         </div>
 
         <div style={{display:"flex",gap:8,marginBottom:12}}>
-          <input value={ni.cost} onChange={e=>setNi(p=>({...p,cost:e.target.value}))} placeholder="€ Coste"
+          <input value={ni.cost} onChange={e=>sNi(p=>({...p,cost:e.target.value}))} placeholder="€ Coste"
             type="number" style={{...inputStyle,flex:1}}/>
-          <input value={ni.notes} onChange={e=>setNi(p=>({...p,notes:e.target.value}))} placeholder="Notas (nº vuelo, hora…)"
+          <input value={ni.notes} onChange={e=>sNi(p=>({...p,notes:e.target.value}))} placeholder="Notas (nº vuelo, hora…)"
             style={{...inputStyle,flex:2}}/>
         </div>
 
@@ -1341,7 +1339,6 @@ Sugiere 5-8 ciudades ordenadas GEOGRÁFICAMENTE para minimizar desplazamientos.
 Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]
 "order" = orden lógico de visita, "days" = días recomendados.`);
       
-      // 🛠️ CORRECCIÓN 1: Filtro maestro de limpieza de marcas markdown. Elimina ```json del string devuelto por Gemini v1
       const textLimpio = t
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/i, "")
@@ -1732,13 +1729,11 @@ function VoyagerApp(){
   const[screen,sScreen]=useState("landing");
   const T=dark?DARK:LIGHT;
 
-  useEffect(()=>{
+  useEffect(()=> {
     try{const s=localStorage.getItem("voyager_v1");if(s){const t=JSON.parse(s);sTrips(t);if(t.length>0)sScreen("home");}}catch(e){console.error(e);}
   },[]);
 
-  useEffect(()=>{
-    // 🛠️ CORRECCIÓN 2: Sincronización de persistencia robusta. Si borras el último viaje activo (trips = []), 
-    // antes no entraba en el condicional y el viaje resucitaba al reabrir la app. Ahora machaca el almacenamiento siempre.
+  useEffect(()=> {
     try{localStorage.setItem("voyager_v1",JSON.stringify(trips));}catch(e){console.error(e);}
   },[trips]);
 
