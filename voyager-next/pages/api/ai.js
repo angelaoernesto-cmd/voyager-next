@@ -1,24 +1,40 @@
 // pages/api/ai.js
+// Ejecutado 100% en el servidor de Vercel para proteger tu GEMINI_API_KEY.
+
 export default async function handler(req, res) {
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY no configurada.' });
-
-  let userPrompt = "";
-  if (req.body && typeof req.body === 'object') userPrompt = req.body.prompt;
-  else if (req.body && typeof req.body === 'string') {
-    try { const parsed = JSON.parse(req.body); userPrompt = parsed.prompt || req.body; }
-    catch (e) { userPrompt = req.body; }
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
 
-  if (!userPrompt) userPrompt = "Genera una ruta para viajar a China.";
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método no permitido' });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'GEMINI_API_KEY no configurada en Vercel.' });
+  }
+
+  let userPrompt = "";
+  if (req.body && typeof req.body === 'object') {
+    userPrompt = req.body.prompt;
+  } else if (req.body && typeof req.body === 'string') {
+    try {
+      const parsed = JSON.parse(req.body);
+      userPrompt = parsed.prompt || req.body;
+    } catch (e) {
+      userPrompt = req.body;
+    }
+  }
+
+  if (!userPrompt) {
+    userPrompt = "Genera una ruta optimizada para viajar a China.";
+  }
 
   try {
     const response = await fetch(
@@ -27,9 +43,14 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `Genera una lista de ciudades optimizadas geográficamente para el siguiente destino y parámetros. Devuelve estrictamente un array JSON plano, sin formato markdown, sin bloques de código, con la siguiente estructura: [{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]. Parámetros: ${userPrompt}` }] }],
+          contents: [{ 
+            parts: [{ 
+              text: `Genera una sugerencia de itinerario para: ${userPrompt}. Devuelve estrictamente un array de objetos con este formato: [{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]. Responde siempre en español.` 
+            }] 
+          }],
+          // PARÁMETRO CLAVE: Obliga a Gemini a escupir JSON puro sin texto Markdown
           generationConfig: {
-            responseMimeType: "application/json" // Esta es la propiedad estricta que exige la v1 para no dar error 400
+            responseMimeType: "application/json"
           }
         })
       }
@@ -42,9 +63,11 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // Devolvemos el JSON limpio de fábrica
     return res.status(200).json({ text: text.trim() });
 
   } catch (err) {
-    return res.status(500).json({ error: 'Error interno', detail: err.message });
+    return res.status(500).json({ error: 'Error interno en Vercel', detail: err.message });
   }
 }
