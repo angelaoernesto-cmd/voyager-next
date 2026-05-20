@@ -33,11 +33,10 @@ export default async function handler(req, res) {
   }
 
   if (!userPrompt) {
-    userPrompt = "Genera una ruta optimizada para viajar.";
+    userPrompt = "China";
   }
 
   try {
-    // 🛠️ CORRECCIÓN AQUÍ: Apuntando a la versión estable "/v1/" requerida por Google
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
@@ -46,26 +45,11 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           contents: [{ 
             parts: [{ 
-              text: `Genera una sugerencia de itinerario para: ${userPrompt}. Responde siempre en español.` 
+              text: `Eres un planificador experto. Genera un itinerario optimizado para: ${userPrompt}. 
+              Devuelve la respuesta estrictamente como un array de objetos JSON planos en español, sin envolverlo en markdown, sin usar las palabras o marcas \`\`\`json.
+              Formato esperado: [{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]` 
             }] 
-          }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: "ARRAY",
-              items: {
-                type: "OBJECT",
-                properties: {
-                  name: { type: "STRING" },
-                  emoji: { type: "STRING" },
-                  desc: { type: "STRING" },
-                  days: { type: "INTEGER" },
-                  order: { type: "INTEGER" }
-                },
-                required: ["name", "emoji", "desc", "days", "order"]
-              }
-            }
-          }
+          }]
         })
       }
     );
@@ -76,9 +60,12 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    return res.status(200).json({ text: text.trim() });
+    // Limpieza manual de seguridad por si acaso mete bloques markdown
+    text = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+
+    return res.status(200).json({ text: text });
 
   } catch (err) {
     return res.status(500).json({ error: 'Error interno en Vercel', detail: err.message });
