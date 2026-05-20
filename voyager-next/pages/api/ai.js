@@ -45,11 +45,26 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           contents: [{ 
             parts: [{ 
-              text: `Genera una sugerencia de itinerario para: ${userPrompt}. Devuelve estrictamente un array de objetos con este formato: [{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]. Responde siempre en español.` 
+              text: `Genera una sugerencia de itinerario para: ${userPrompt}. Responde siempre en español.` 
             }] 
           }],
           generationConfig: {
-            responseMimeType: "application/json" // Formato nativo obligatorio en la v1
+            responseMimeType: "application/json",
+            // 🛠️ ESQUEMA ESTRICTO MANDATORIO DE GOOGLE GEMINI v1
+            responseSchema: {
+              type: "ARRAY",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  name: { type: "STRING" },
+                  emoji: { type: "STRING" },
+                  desc: { type: "STRING" },
+                  days: { type: "INTEGER" },
+                  order: { type: "INTEGER" }
+                },
+                required: ["name", "emoji", "desc", "days", "order"]
+              }
+            }
           }
         })
       }
@@ -57,7 +72,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errText = await response.text();
-      return res.status(response.status).json({ error: 'Error de Gemini', detail: errText });
+      return res.status(response.status).json({ error: 'Error de Gemini API', detail: errText });
     }
 
     const data = await response.json();
