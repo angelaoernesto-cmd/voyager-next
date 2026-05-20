@@ -5,7 +5,8 @@ import dynamic from "next/dynamic";
 // AI HELPER – calls /api/ai (server-side route) which calls Gemini securely.
 // ─────────────────────────────────────────────────────────────────────────────
 async function callAI(prompt) {
-  const res = await fetch("https://voyager-next.vercel.app/api/ai", {
+  // Apunta directamente a tu dominio de producción real con -chi
+  const res = await fetch("https://voyager-next-chi.vercel.app/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt }),
@@ -343,7 +344,7 @@ function MapView({cities,T,onClose}){
       coords.forEach(({lat,lon,city},i)=>{
         const color = city.color||"#B45309";
         const icon = L.divIcon({
-          html:`<div style="background:${color};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justifycontent:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,.4);border:2.5px solid white;">${city.emoji||"📍"}</div>`,
+          html:`<div style="background:${color};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,.4);border:2.5px solid white;">${city.emoji||"📍"}</div>`,
           iconSize:[32,32], iconAnchor:[16,16], className:""
         });
         const marker = L.marker([lat,lon],{icon}).addTo(map);
@@ -865,7 +866,7 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
             </div>
           )}
           <button onClick={pushTrip} disabled={loading}
-            style={{width:"100%",background:loading?"#ccc":T.bgNav,border:"none",borderRadius:12,padding:"13px",color:"white",fontWeight:700,fontSize:14,cursor:"loading"?"default":"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            style={{width:"100%",background:loading?"#ccc":T.bgNav,border:"none",borderRadius:12,padding:"13px",color:"white",fontWeight:700,fontSize:14,cursor:loading?"default":"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
             {loading?<><Spin c="white"/>Publicando…</>:<>📤 {shareCode?"Actualizar":"Publicar"} viaje</>}
           </button>
         </>}
@@ -1339,6 +1340,7 @@ Sugiere 5-8 ciudades ordenadas GEOGRÁFICAMENTE para minimizar desplazamientos.
 Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]
 "order" = orden lógico de visita, "days" = días recomendados.`);
       
+      // 🛠️ FILTRO MAESTRO DE LIMPIEZA DE MARCAS MARKDOWN EXTERNAS
       const textLimpio = t
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/i, "")
@@ -1729,11 +1731,11 @@ function VoyagerApp(){
   const[screen,sScreen]=useState("landing");
   const T=dark?DARK:LIGHT;
 
-  useEffect(()=> {
+  useEffect(() => {
     try{const s=localStorage.getItem("voyager_v1");if(s){const t=JSON.parse(s);sTrips(t);if(t.length>0)sScreen("home");}}catch(e){console.error(e);}
   },[]);
 
-  useEffect(()=> {
+  useEffect(() => {
     try{localStorage.setItem("voyager_v1",JSON.stringify(trips));}catch(e){console.error(e);}
   },[trips]);
 
