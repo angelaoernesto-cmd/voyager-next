@@ -33,7 +33,7 @@ export default async function handler(req, res) {
   }
 
   if (!userPrompt) {
-    userPrompt = "Genera una ruta optimizada para viajar a China.";
+    userPrompt = "Genera una ruta optimizada para viajar.";
   }
 
   try {
@@ -48,9 +48,8 @@ export default async function handler(req, res) {
               text: `Genera una sugerencia de itinerario para: ${userPrompt}. Devuelve estrictamente un array de objetos con este formato: [{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]. Responde siempre en español.` 
             }] 
           }],
-          // PARÁMETRO CLAVE: Obliga a Gemini a escupir JSON puro sin texto Markdown
           generationConfig: {
-            responseMimeType: "application/json"
+            responseMimeType: "application/json" // Formato nativo obligatorio en la v1
           }
         })
       }
@@ -64,7 +63,6 @@ export default async function handler(req, res) {
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-    // Devolvemos el JSON limpio de fábrica
     return res.status(200).json({ text: text.trim() });
 
   } catch (err) {
