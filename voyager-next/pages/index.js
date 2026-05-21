@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 // ─────────────────────────────────────────────────────────────────────────────
 async function callAI(prompt, image = null) {
   // Apunta directamente a tu dominio de producción real con -chi
-  const res = await fetch("https://voyager-next-chi.vercel.app/api/ai", {
+  const res = await fetch("[https://voyager-next-chi.vercel.app/api/ai](https://voyager-next-chi.vercel.app/api/ai)", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt, image }),
@@ -239,7 +239,7 @@ function Expand({label,sub,desc,col,T}){
   const[o,sO]=useState(false);
   return(
     <div style={{borderBottom:`1px solid ${T.border}`}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",cursor:"pointer"}} onClick={()=>sO(x=>!x)}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",cursor:"pointer"} } onClick={()=>sO(x=>!x)}>
         <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:T.ink}}>{label}</div>{sub&&<div style={{fontSize:11,color:col||T.gold,marginTop:2,fontWeight:600}}>{sub}</div>}</div>
         <span style={{fontSize:14,color:T.inkLight,marginLeft:8,display:"inline-block",transform:o?"rotate(90deg)":"none",transition:"transform .18s"}}>›</span>
       </div>
@@ -319,7 +319,7 @@ function MapView({cities,T,onClose}){
     if(!document.getElementById("leaflet-css")){
       const link = document.createElement("link");
       link.id="leaflet-css"; link.rel="stylesheet";
-      link.href="[https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css](https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css)";
+      link.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
       document.head.appendChild(link);
     }
 
@@ -327,7 +327,7 @@ function MapView({cities,T,onClose}){
       initMap();
     } else {
       const s = document.createElement("script");
-      s.src="[https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js](https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js)";
+      s.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
       s.onload = initMap;
       document.head.appendChild(s);
     }
@@ -427,7 +427,7 @@ function ExportPDF({trip,T,onClose}){
       if(!window.jspdf){
         await new Promise((res,rej)=>{
           const s=document.createElement("script");
-          s.src="[https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js](https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js)";
+          s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
           s.onload=res; s.onerror=rej;
           document.head.appendChild(s);
         });
@@ -847,7 +847,7 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
               2. Reglas de seguridad: pon read: true, write: true.<br/>
               3. Copia la URL de la base de datos:
             </div>
-            <input value={fbUrl} onChange={e=>setFbUrl(e.target.value)} placeholder="[https://tu-proyecto.firebaseio.com](https://tu-proyecto.firebaseio.com)"
+            <input value={fbUrl} onChange={e=>setFbUrl(e.target.value)} placeholder="https://tu-proyecto.firebaseio.com"
               style={{width:"100%",background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
             <button onClick={saveFb} style={{width:"100%",background:T.gold,border:"none",borderRadius:8,padding:"11px",color:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Guardar</button>
           </div>
@@ -1010,7 +1010,6 @@ function HotelsSheet({trip,onUpdateTrip,onClose,T}){
   </Sheet>);
 }
 
-// ◈ Presupuesto Sheet
 function BudgetSheet({trip,onUpdateTrip,onClose,T}){
   const bgt=trip.budget||{total:"",items:[]};
   const items = bgt.items || [];
@@ -1153,7 +1152,7 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
         </div>
 
         <button onClick={add} disabled={!ni.from||!ni.to}
-          style={{width:"100%",background:ni.from&&ni.to?T.gold:"#ccc",border:"none",borderRadius:10,padding:"12px",color:"white",fontWeight:700,fontSize:13,cursor:ni.from&&ni.to?"pointer":"default",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          style={{width:"100%",background:ni.from&&ni.to?T.gold:"#ccc",border:"none",borderRadius:10,padding:"12px",color:"white",fontWeight:700,fontSize:13,cursor:"ni.from&&ni.to?\"pointer\":\"default\"",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
           {TI[ni.type]||"✈"} Añadir traslado{ni.date?` · ${fmtTrasladoDate(ni.date)}`:""}
         </button>
       </div>
@@ -1311,7 +1310,7 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SETUP WIZARD (ASISTENTE DE CONFIGURACIÓN MODAL)
+// SETUP WIZARD
 // ─────────────────────────────────────────────────────────────────────────────
 function SetupWizard({T,onCancel,onDone}){
   const[step,sStep]=useState(0);
@@ -1326,8 +1325,8 @@ function SetupWizard({T,onCancel,onDone}){
   const[cities,sCities]=useState([]);
   const[asgn,sAsgn]=useState({});
   const[activeCity,sAC]=useState(null);
-  
-  // 📸 NUEVO ESTADO: Almacena la captura de pantalla en Base64
+
+  // 📸 NUEVO ESTADO: Almacena la captura de pantalla o foto en Base64
   const [img, sImg] = useState(null);
 
   const numDays=dim(year,month);
@@ -1343,7 +1342,7 @@ function SetupWizard({T,onCancel,onDone}){
   };
 
   const getSugg=useCallback(async()=>{
-    if(!dest.trim() && !img) return; // Permite planificar con imagen o destino de texto indistintamente
+    if(!dest.trim() && !img) return;
     sLoading(true);sError("");
     try{
       const promptTexto = `Destino solicitado: ${dest || "Especificado en la imagen"}. Mes: ${MONTHS[month]} ${year}.
@@ -1351,16 +1350,11 @@ Sugiere 5-8 ciudades ordenadas GEOGRÁFICAMENTE para minimizar desplazamientos.
 Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]
 "order" = orden lógico de visita, "days" = días recomendados.`;
 
-      // Llamamos a la IA pasando el texto y la captura multimodal
+      // Llamamos a la IA pasando el prompt de texto y el objeto multimodal de imagen
       const t = await callAI(promptTexto, img);
       
-      const textLimpio = t
-        .replace(/^```json\s*/i, "")
-        .replace(/^```\s*/i, "")
-        .replace(/```\s*$/i, "")
-        .trim();
-
-      const parsed=JSON.parse(textLimpio);
+      // El Filtro Maestro ya limpia las marcas en callAI, procesamos directamente
+      const parsed=JSON.parse(t);
       sAI(parsed.sort((a,b)=>(a.order||0)-(b.order||0)));
     }catch(e){
       console.error("Error crítico leyendo JSON de IA:", e);
@@ -1399,7 +1393,7 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
         <div style={{fontSize:11,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:10}}>DESTINO LIBRE</div>
         <WorldSearch value={dest} onChange={sDest} T={T}/>
         
-        {/* 📸 NUEVO RECUADRO DE CARGA DE CAPTURAS/FOTOS */}
+        {/* 📸 NUEVO COMPONENTE MULTIMODAL DE ENTRADA DE IMAGEN */}
         <div style={{marginTop:14,background:T.bgMuted,padding:12,borderRadius:12,border:`1px dashed ${T.border}`}}>
           <span style={{fontSize:11,color:T.ink,fontWeight:700,display:"block",marginBottom:6}}>📸 ¿Tienes una captura de vuelos o itinerario? (Opcional)</span>
           <input type="file" accept="image/*" onChange={(e)=>{
@@ -1410,7 +1404,7 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
               r.readAsDataURL(file);
             }
           }} style={{fontSize:12,color:T.ink,width:"100%"}}/>
-          {img && <div style={{fontSize:11,color:T.green,marginTop:6,fontWeight:700}}>✓ Captura lista para procesar con IA</div>}
+          {img && <div style={{fontSize:11,color:T.green,marginTop:6,fontWeight:700}}>✓ Captura cargada correctamente</div>}
         </div>
 
         {(dest || img) && <button onClick={()=>{sPT(null);sStep(1);}} style={{width:"100%",marginTop:12,background:T.gold,border:"none",borderRadius:12,padding:"13px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 4px 20px ${T.gold}40`}}>
@@ -1443,7 +1437,7 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
     <div style={{position:"fixed",inset:0,background:T.bg,display:"flex",flexDirection:"column",zIndex:500}}>
       <div style={{background:T.bgNav,padding:"14px 18px 10px",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
         <button onClick={()=>sStep(1)} style={{background:"rgba(255,255,255,.12)",border:"none",borderRadius:"50%",width:36,height:36,color:"white",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>
-        <div style={{flex:1}}><div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:16,fontWeight:900,color:"white"}}>{dest || "Imagen cargada"} · {MONTHS[month]} {year}</div><div style={{fontSize:9,color:T.gold,letterSpacing:2,fontWeight:700}}>✦ RUTA OPTIMIZADA GEOGRÁFICAMENTE</div></div>
+        <div style={{flex:1}}><div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:16,fontWeight:900,color:"white"}}>{dest || "Captura de pantalla"} · {MONTHS[month]} {year}</div><div style={{fontSize:9,color:T.gold,letterSpacing:2,fontWeight:700}}>✦ RUTA OPTIMIZADA GEOGRÁFICAMENTE</div></div>
         <div style={{fontSize:12,color:T.gold,fontWeight:700}}>{selected.length}</div>
       </div>
       <div style={{overflowY:"auto",flex:1,padding:"12px 16px 16px",background:T.bg}}>
@@ -1479,7 +1473,7 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HOME SCREEN (PANTALLA PRINCIPAL)
+// HOME SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAddTrip,T}){
   const now=new Date();
@@ -1571,7 +1565,7 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
           )}
         </div>
         <div style={{display:"flex",gap:5}}>
-          {activeTrip&&<button onClick={()=>sShowEdit(true)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:"50%",width:30,height:30,color:"white",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{dark?"☀️":"🌙"}</button>}
+          {activeTrip&&<button onClick={()=>sShowEdit(true)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:20,height:30,padding:"0 10px",color:"rgba(255,255,255,.7)",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✎ Editar</button>}
           <button onClick={onNewTrip} style={{background:T.gold,border:"none",borderRadius:20,height:30,padding:"0 12px",color:"white",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:3}}>
             <span style={{fontSize:14,lineHeight:1}}>+</span>Nuevo
           </button>
