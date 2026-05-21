@@ -15,8 +15,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  // Clave directa para saltarnos cualquier restricción de entorno de Vercel
-  const apiKey = "AIzaSyBYNhmxdhtV0RJjkxtNSZD1NT_Vr2NCK3c";
+  // Leemos la clave de la pestaña Environment Variables de tu Vercel de forma limpia
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'GEMINI_API_KEY no configurada en Vercel.' });
+  }
 
   let userPrompt = "";
   if (req.body && typeof req.body === 'object') {
@@ -30,38 +33,23 @@ export default async function handler(req, res) {
     }
   }
 
-  // Capturamos la imagen opcional en Base64 enviada desde el móvil o la web
-  let image = req.body.image; 
-
   if (!userPrompt) {
     userPrompt = "China";
   }
 
-  // Construimos las partes de la consulta (Multimodal: Texto + Imagen opcional)
-  let parts = [{ 
-    text: `${userPrompt}. Devuelve la respuesta EXCLUSIVAMENTE en formato JSON estructurado limpio en español. 
-    No agregues ninguna introducción ni texto aclaratorio fuera del JSON.
-    Si se adjunta una imagen o captura de pantalla (de vuelos, billetes o notas), léela con cuidado y organiza los datos cronológicamente dentro del JSON.` 
-  }];
-
-  // Si viene una imagen del teléfono o del navegador, la inyectamos
-  if (image && image.data && image.mimeType) {
-    parts.push({
-      inlineData: {
-        mimeType: image.mimeType,
-        data: image.data
-      }
-    });
-  }
-
   try {
+    // Forzamos la URL v1 estable oficial de Google
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: parts }] // Eliminamos generationConfig para evitar errores 400 de validación de Google
+          contents: [{ 
+            parts: [{ 
+              text: `${userPrompt}. Devuelve la respuesta EXCLUSIVAMENTE como un array de objetos JSON en español, sin textos introductorios. Formato: [{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]` 
+            }] 
+          }] // Quitamos generationConfig por completo para evitar que Google devuelva Error 400
         })
       }
     );
@@ -72,7 +60,7 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
-    let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     return res.status(200).json({ text: text.trim() });
 
