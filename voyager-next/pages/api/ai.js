@@ -1,6 +1,4 @@
 // pages/api/ai.js
-// Ejecutado 100% en el servidor de Vercel para proteger tu GEMINI_API_KEY.
-
 export default async function handler(req, res) {
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
@@ -15,7 +13,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
-  // Leemos la clave de la pestaña Environment Variables de tu Vercel de forma limpia
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({ error: 'GEMINI_API_KEY no configurada en Vercel.' });
@@ -33,12 +30,7 @@ export default async function handler(req, res) {
     }
   }
 
-  if (!userPrompt) {
-    userPrompt = "China";
-  }
-
   try {
-    // Forzamos la URL v1 estable oficial de Google
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
@@ -47,16 +39,16 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           contents: [{ 
             parts: [{ 
-              text: `${userPrompt}. Devuelve la respuesta EXCLUSIVAMENTE como un array de objetos JSON en español, sin textos introductorios. Formato: [{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]` 
+              text: `${userPrompt}. Devuelve la respuesta estrictamente estructurada en formato JSON en español, sin usar marcas de bloque markdown \`\`\`json.` 
             }] 
-          }] // Quitamos generationConfig por completo para evitar que Google devuelva Error 400
+          }]
         })
       }
     );
 
     if (!response.ok) {
       const errText = await response.text();
-      return res.status(response.status).json({ error: 'Error de Gemini API', detail: errText });
+      return res.status(response.status).json({ error: 'Error de Gemini', detail: errText });
     }
 
     const data = await response.json();
