@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:mobile": "NEXT_OUTPUT=export next build",
     "start": "next start"
   },
   "dependencies": {
