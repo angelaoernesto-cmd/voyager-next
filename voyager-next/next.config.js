@@ -4,8 +4,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Solo aplica exportación estática si ejecutamos el script del móvil
-  ...(process.env.NEXT_OUTPUT === 'export' ? { output: 'export' } : {}),
+  // Sin 'output' aquí — se controla desde package.json
 };
 
 module.exports = nextConfig;
