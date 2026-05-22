@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Si compila en Vercel, desactiva 'export' para levantar la API en la nube
-  output: process.env.VERCEL ? undefined : 'export',
   reactStrictMode: false,
   images: {
     unoptimized: true,
   },
+  // Solo aplica exportación estática si ejecutamos el script del móvil
+  ...(process.env.NEXT_OUTPUT === 'export' ? { output: 'export' } : {}),
 };
 
 module.exports = nextConfig;
