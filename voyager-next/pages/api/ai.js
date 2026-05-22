@@ -1,4 +1,6 @@
 // pages/api/ai.js
+// Ejecutado 100% en el servidor de Vercel para proteger tu GEMINI_API_KEY.
+
 export default async function handler(req, res) {
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
@@ -30,6 +32,10 @@ export default async function handler(req, res) {
     }
   }
 
+  if (!userPrompt) {
+    return res.status(400).json({ error: 'Falta el prompt del usuario' });
+  }
+
   try {
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
@@ -39,7 +45,7 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           contents: [{ 
             parts: [{ 
-              text: `${userPrompt}. Devuelve la respuesta estrictamente estructurada en formato JSON en español, sin usar marcas de bloque markdown \`\`\`json.` 
+              text: userPrompt // Envia el prompt puro y exacto generado por cada pantalla sin alteraciones
             }] 
           }]
         })
