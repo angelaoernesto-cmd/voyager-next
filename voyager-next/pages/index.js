@@ -234,50 +234,6 @@ function SheetHead({title,sub,icon,col,onBack,onClose,T}){
   );
 }
 
-function Expand({label,sub,desc,col,T}){
-  const[o,sO]=useState(false);
-  return(
-    <div style={{borderBottom:`1px solid ${T.border}`}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",cursor:"pointer"} } onClick={()=>sO(x=>!x)}>
-        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:T.ink}}>{label}</div>{sub&&<div style={{fontSize:11,color:col||T.gold,marginTop:2,fontWeight:600}}>{sub}</div>}</div>
-        <span style={{fontSize:14,color:T.inkLight,marginLeft:8,display:"inline-block",transform:o?"rotate(90deg)":"none",transition:"transform .18s"}}>›</span>
-      </div>
-      {o&&<div style={{background:T.bgMuted,borderRadius:8,padding:"11px 13px",marginBottom:10,fontSize:13,color:T.inkMuted,lineHeight:1.65}}>{desc}</div>}
-    </div>
-  );
-}
-
-function WorldSearch({value,onChange,T}){
-  const[sugg,setSugg]=useState([]);
-  const[open,setOpen]=useState(false);
-  useEffect(()=>{
-    if(!value.trim()){setSugg([]);setOpen(false);return;}
-    const q=value.toLowerCase();
-    setSugg(WORLD.filter(d=>d.toLowerCase().includes(q)).slice(0,7));
-    setOpen(true);
-  },[value]);
-  return(
-    <div style={{position:"relative"}}>
-      <input value={value} onChange={e=>onChange(e.target.value)} placeholder="Escribe un país o ciudad…"
-        onFocus={()=>sugg.length>0&&setOpen(true)} onBlur={()=>setTimeout(()=>setOpen(false),150)}
-        style={{width:"100%",background:T.bgCard,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"13px 16px",fontSize:15,color:T.ink,fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color .15s"}}/>
-      {value&&<button onClick={()=>{onChange("");setSugg([]);}} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.inkLight,cursor:"pointer",fontSize:16}}>✕</button>}
-      {open&&sugg.length>0&&(
-        <div style={{position:"absolute",left:0,right:0,top:"calc(100% + 4px)",background:T.bgCard,borderRadius:12,overflow:"hidden",border:`1px solid ${T.border}`,zIndex:50,boxShadow:`0 8px 24px rgba(0,0,0,.12)`,animation:"fadeUp .15s ease"}}>
-          {sugg.map((s,i)=>(
-            <button key={i} onMouseDown={()=>{onChange(s);setOpen(false);}}
-              style={{width:"100%",padding:"11px 16px",background:"transparent",border:"none",borderBottom:i<sugg.length-1?`1px solid ${T.border}`:"none",color:T.ink,textAlign:"left",cursor:"pointer",fontFamily:"inherit",fontSize:13,display:"flex",alignItems:"center",gap:8}}
-              onMouseEnter={e=>e.currentTarget.style.background=T.bgMuted}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              🔍 {s}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // MAP VIEW 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -735,7 +691,8 @@ function FlightAlertsSheet({trip,T,onClose}){
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{background:T.bgNav,borderRadius:8,padding:"6px 12px",color:T.gold,fontWeight:800,fontSize:14,letterSpacing:1}}>{f.num}</div>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{f.from} → {t.to}</div>
+                    {/* ✅ LÍNEA CORREGIDA: "f.to" en lugar de "t.to" para que lea correctamente el objeto de la iteración */}
+                    <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{f.from} → {f.to}</div>
                     {f.date&&<div style={{fontSize:11,color:T.inkMuted,marginTop:2}}>{f.date}</div>}
                   </div>
                 </div>
@@ -756,7 +713,7 @@ function FlightAlertsSheet({trip,T,onClose}){
               </div>
             ))}
             <button onClick={checkFlights} disabled={loading||!apiKey}
-              style={{width:"100%",background:apiKey&&!loading?T.bgNav:"#ccc",border:"none",borderRadius:12,padding:"12px",color:"white",fontWeight:700,fontSize:13,cursor:"apiKey && !loading"?"pointer":"default",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:4}}>
+              style={{width:"100%",background:apiKey&&!loading?T.bgNav:"#ccc",border:"none",borderRadius:12,padding:"12px",color:"white",fontWeight:700,fontSize:13,cursor:apiKey && !loading?"pointer":"default",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:4}}>
               {loading?<><Spin c="white"/>Consultando…</>:<>🔄 Actualizar estado</>}
             </button>
           </>
@@ -1035,7 +992,7 @@ function BudgetSheet({trip,onUpdateTrip,onClose,T}){
       <div style={{background:T.bgMuted,borderRadius:12,padding:14,marginBottom:16}}>
         <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:6,fontWeight:700}}>TOTAL</div>
         <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:700,color:T.gold}}>€</span><input value={total} onChange={e=>save(items,e.target.value)} placeholder="0" style={{background:"transparent",border:"none",outline:"none",fontSize:26,fontWeight:800,color:T.ink,fontFamily:"'Playfair Display',Georgia,serif",width:"100%"}}/></div>
-        {totalN>0&&<><div style={{height:4,background:T.border,borderRadius:2,marginTop:10,overflow:"hidden"} }><div style={{height:"100%",width:`${pct}%`,background:pct>90?T.red:T.gold,borderRadius:2,transition:"width .5s"}}/></div><div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.inkMuted,marginTop:5}}><span>Gastado: <strong style={{color:pct>90?T.red:T.green}}>€{spent.toFixed(0)}</strong></span><span>Disponible: <strong style={{color:T.ink}}>€{(totalN-spent).toFixed(0)}</strong></span></div></>}
+        {totalN>0&&<><div style={{height:4,background:T.border,borderRadius:2,marginTop:10,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:pct>90?T.red:T.gold,borderRadius:2,transition:"width .5s"}}/></div><div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.inkMuted,marginTop:5}}><span>Gastado: <strong style={{color:pct>90?T.red:T.green}}>€{spent.toFixed(0)}</strong></span><span>Disponible: <strong style={{color:T.ink}}>€{(totalN-spent).toFixed(0)}</strong></span></div></>}
       </div>
       {items.map(item=>(
         <div key={item.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:`1px solid ${T.border}`}}>
@@ -1162,7 +1119,7 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
         </button>
       </div>
     </div>
-  </Sheet>);
+  );
 }
 
 function NotasSheet({trip,onUpdateTrip,onClose,T}){
@@ -1461,7 +1418,7 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
         );})}
       </div>
       <div style={{padding:"10px 16px 22px",flexShrink:0,borderTop:`1px solid ${T.border}`,background:T.bg}}>
-        <button onClick={buildDays} disabled={selected.length===0} style={{width:"100%",background:selected.length?T.gold:"#ccc",border:"none",borderRadius:14,padding:"14px",color:"white",fontWeight:700,fontSize:14,cursor:selected.length?"pointer":"default",fontFamily:"inherit"}}>
+        <button onClick={buildDays} disabled={selected.length===0} style={{width:"100%",background:selected.length?T.gold:"#ccc",border:"none",borderRadius:14,padding:"14px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
           Asignar días → ({selected.length} ciudades)
         </button>
       </div>
@@ -1570,7 +1527,7 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
           )}
         </div>
         <div style={{display:"flex",gap:5}}>
-          {activeTrip&&<button onClick={()=>sShowEdit(true)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:20,height:30,padding:"0 10px",color:"rgba(255,255,255,.7)",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✎ Editar</button>}
+          {activeTrip&&<button onClick={()=>sShowEdit(true)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:"50%",width:30,height:30,color:"white",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"} } onClick={()=>sShowEdit(true)}>✎ Editar</button>}
           <button onClick={onNewTrip} style={{background:T.gold,border:"none",borderRadius:20,height:30,padding:"0 12px",color:"white",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:3}}>
             <span style={{fontSize:14,lineHeight:1}}>+</span>Nuevo
           </button>
