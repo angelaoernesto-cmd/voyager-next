@@ -5,12 +5,11 @@ import dynamic from "next/dynamic";
 // AI HELPER – calls /api/ai (server-side route) which calls Gemini securely.
 // ─────────────────────────────────────────────────────────────────────────────
 async function callAI(prompt, image = null) {
-  // Construcción en piezas para evitar que el formato del chat meta basura de enlaces
-  const parte1 = "https://";
-  const parte2 = "voyager-next-chi";
-  const urlLimpia = parte1 + parte2 + ".vercel.app/api/ai";
+  const p1 = "https://";
+  const p2 = "voyager-next-chi";
+  const urlFinal = p1 + p2 + ".vercel.app/api/ai";
 
-  const res = await fetch(urlLInter, {
+  const res = await fetch(urlFinal, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt, image }),
