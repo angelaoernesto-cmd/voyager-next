@@ -2,14 +2,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AI HELPER – calls /api/ai (server-side route) which calls Gemini securely.
+// AI HELPER – Llama a /api/ai de manera relativa y limpia para evitar errores
 // ─────────────────────────────────────────────────────────────────────────────
 async function callAI(prompt, image = null) {
-  const p1 = "https://";
-  const p2 = "voyager-next-chi";
-  const urlFinal = p1 + p2 + ".vercel.app/api/ai";
-
-  const res = await fetch(urlFinal, {
+  // Ruta relativa impecable: evita caracteres basura y se adapta sola en Vercel e internet
+  const res = await fetch("/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt, image }),
@@ -321,7 +318,7 @@ function MapView({cities,T,onClose}){
     if(!document.getElementById("leaflet-css")){
       const link = document.createElement("link");
       link.id="leaflet-css"; link.rel="stylesheet";
-      link.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+      link.href="[https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css](https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css)";
       document.head.appendChild(link);
     }
 
@@ -329,7 +326,7 @@ function MapView({cities,T,onClose}){
       initMap();
     } else {
       const s = document.createElement("script");
-      s.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+      s.src="[https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js](https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js)";
       s.onload = initMap;
       document.head.appendChild(s);
     }
@@ -429,7 +426,7 @@ function ExportPDF({trip,T,onClose}){
       if(!window.jspdf){
         await new Promise((res,rej)=>{
           const s=document.createElement("script");
-          s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+          s.src="[https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js](https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js)";
           s.onload=res; s.onerror=rej;
           document.head.appendChild(s);
         });
@@ -738,7 +735,7 @@ function FlightAlertsSheet({trip,T,onClose}){
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{background:T.bgNav,borderRadius:8,padding:"6px 12px",color:T.gold,fontWeight:800,fontSize:14,letterSpacing:1}}>{f.num}</div>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{f.from} → {f.to}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{f.from} → {t.to}</div>
                     {f.date&&<div style={{fontSize:11,color:T.inkMuted,marginTop:2}}>{f.date}</div>}
                   </div>
                 </div>
@@ -849,7 +846,7 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
               2. Reglas de seguridad: pon read: true, write: true.<br/>
               3. Copia la URL de la base de datos:
             </div>
-            <input value={fbUrl} onChange={e=>setFbUrl(e.target.value)} placeholder="https://tu-proyecto.firebaseio.com"
+            <input value={fbUrl} onChange={e=>setFbUrl(e.target.value)} placeholder="[https://tu-proyecto.firebaseio.com](https://tu-proyecto.firebaseio.com)"
               style={{width:"100%",background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
             <button onClick={saveFb} style={{width:"100%",background:T.gold,border:"none",borderRadius:8,padding:"11px",color:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Guardar</button>
           </div>
@@ -910,18 +907,24 @@ function CitySheet({city,onClose,onBack,onUpdate,T}){
   useEffect(()=>{
     if(!city.desc&&!city.attractions?.length){
       sL(true);
-      callAI(`Información turística de ${city.name}${city.country?", "+city.country:""}.
+      // CORRECCIÓN ANTICAÍDAS DEFINITIVA: Delay aleatorio para que las ciudades no llamen en masa a la vez (Evita el Error 429)
+      const delay = Math.random() * 3000;
+      const timer = setTimeout(() => {
+        callAI(`Información turística de ${city.name}${city.country?", "+city.country:""}.
 JSON exacto (sin ningún texto adicional):
 {"desc":"2-3 frases del destino","attractions":[{"name":"emoji+nombre","price":"precio €","desc":"2 frases"}],"food":[{"name":"emoji+nombre del plato","desc":"descripción y dónde probarlo, 2 frases"}],"transport":"cómo llegar y moverse (2 frases)"}
 Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de comida.`)
-      .then(t=>{try{
-        const textLimpio = t.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
-        const p=JSON.parse(textLimpio);
-        const u={...d,...p};
-        sD(u);
-        onUpdate({...city,...u});
-      }catch(e){console.error(e);}sL(false);})
-      .catch(()=>sL(false));
+        .then(t=>{try{
+          const textLimpio = t.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+          const p=JSON.parse(textLimpio);
+          const u={...d,...p};
+          sD(u);
+          onUpdate({...city,...u});
+        }catch(e){console.error(e);}sL(false);})
+        .catch(()=>sL(false));
+      }, delay);
+
+      return () => clearTimeout(timer);
     }
   }, [city.id]); 
 
@@ -1032,7 +1035,7 @@ function BudgetSheet({trip,onUpdateTrip,onClose,T}){
       <div style={{background:T.bgMuted,borderRadius:12,padding:14,marginBottom:16}}>
         <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:6,fontWeight:700}}>TOTAL</div>
         <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:700,color:T.gold}}>€</span><input value={total} onChange={e=>save(items,e.target.value)} placeholder="0" style={{background:"transparent",border:"none",outline:"none",fontSize:26,fontWeight:800,color:T.ink,fontFamily:"'Playfair Display',Georgia,serif",width:"100%"}}/></div>
-        {totalN>0&&<><div style={{height:4,background:T.border,borderRadius:2,marginTop:10,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:pct>90?T.red:T.gold,borderRadius:2,transition:"width .5s"}}/></div><div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.inkMuted,marginTop:5}}><span>Gastado: <strong style={{color:pct>90?T.red:T.green}}>€{spent.toFixed(0)}</strong></span><span>Disponible: <strong style={{color:T.ink}}>€{(totalN-spent).toFixed(0)}</strong></span></div></>}
+        {totalN>0&&<><div style={{height:4,background:T.border,borderRadius:2,marginTop:10,overflow:"hidden"} }><div style={{height:"100%",width:`${pct}%`,background:pct>90?T.red:T.gold,borderRadius:2,transition:"width .5s"}}/></div><div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.inkMuted,marginTop:5}}><span>Gastado: <strong style={{color:pct>90?T.red:T.green}}>€{spent.toFixed(0)}</strong></span><span>Disponible: <strong style={{color:T.ink}}>€{(totalN-spent).toFixed(0)}</strong></span></div></>}
       </div>
       {items.map(item=>(
         <div key={item.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:`1px solid ${T.border}`}}>
@@ -1154,7 +1157,7 @@ function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
         </div>
 
         <button onClick={add} disabled={!ni.from||!ni.to}
-          style={{width:"100%",background:ni.from&&ni.to?T.gold:"#ccc",border:"none",borderRadius:10,padding:"12px",color:"white",fontWeight:700,fontSize:13,cursor:"ni.from&&ni.to?\"pointer\":\"default\"",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          style={{width:"100%",background:ni.from&&ni.to?T.gold:"#ccc",border:"none",borderRadius:10,padding:"12px",color:"white",fontWeight:700,fontSize:13,cursor:ni.from&&ni.to?"pointer":"default",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
           {TI[ni.type]||"✈"} Añadir traslado{ni.date?` · ${fmtTrasladoDate(ni.date)}`:""}
         </button>
       </div>
@@ -1804,9 +1807,6 @@ function VoyagerApp(){
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SAFE EXPORT - FOR NEXT.JS BUILD COMPLIANCE
-// ─────────────────────────────────────────────────────────────────────────────
 export default dynamic(() => Promise.resolve(VoyagerApp), {
   ssr: false,
 });
