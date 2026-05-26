@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 // AI HELPER – Llama a /api/ai de manera relativa y limpia para evitar errores
 // ─────────────────────────────────────────────────────────────────────────────
 async function callAI(prompt, image = null) {
-  // Ruta relativa impecable: evita caracteres basura y se adapta sola en Vercel e internet
   const res = await fetch("/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -230,6 +229,50 @@ function SheetHead({title,sub,icon,col,onBack,onClose,T}){
       {icon&&<div style={{fontSize:22,marginBottom:3}}>{icon}</div>}
       <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:19,fontWeight:900,color:"white"}}>{title}</div>
       {sub&&<div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>{sub}</div>}
+    </div>
+  );
+}
+
+function Expand({label,sub,desc,col,T}){
+  const[o,sO]=useState(false);
+  return(
+    <div style={{borderBottom:`1px solid ${T.border}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0",cursor:"pointer"}} onClick={()=>sO(x=>!x)}>
+        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:T.ink}}>{label}</div>{sub&&<div style={{fontSize:11,color:col||T.gold,marginTop:2,fontWeight:600}}>{sub}</div>}</div>
+        <span style={{fontSize:14,color:T.inkLight,marginLeft:8,display:"inline-block",transform:o?"rotate(90deg)":"none",transition:"transform .18s"}}>›</span>
+      </div>
+      {o&&<div style={{background:T.bgMuted,borderRadius:8,padding:"11px 13px",marginBottom:10,fontSize:13,color:T.inkMuted,lineHeight:1.65}}>{desc}</div>}
+    </div>
+  );
+}
+
+function WorldSearch({value,onChange,T}){
+  const[sugg,setSugg]=useState([]);
+  const[open,setOpen]=useState(false);
+  useEffect(()=>{
+    if(!value.trim()){setSugg([]);setOpen(false);return;}
+    const q=value.toLowerCase();
+    setSugg(WORLD.filter(d=>d.toLowerCase().includes(q)).slice(0,7));
+    setOpen(true);
+  },[value]);
+  return(
+    <div style={{position:"relative"}}>
+      <input value={value} onChange={e=>onChange(e.target.value)} placeholder="Escribe un país o ciudad…"
+        onFocus={()=>sugg.length>0&&setOpen(true)} onBlur={()=>setTimeout(()=>setOpen(false),150)}
+        style={{width:"100%",background:T.bgCard,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"13px 16px",fontSize:15,color:T.ink,fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color .15s"}}/>
+      {value&&<button onClick={()=>{onChange("");setSugg([]);}} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.inkLight,cursor:"pointer",fontSize:16}}>✕</button>}
+      {open&&sugg.length>0&&(
+        <div style={{position:"absolute",left:0,right:0,top:"calc(100% + 4px)",background:T.bgCard,borderRadius:12,overflow:"hidden",border:`1px solid ${T.border}`,zIndex:50,boxShadow:`0 8px 24px rgba(0,0,0,.12)`,animation:"fadeUp .15s ease"}}>
+          {sugg.map((s,i)=>(
+            <button key={i} onMouseDown={()=>{onChange(s);setOpen(false);}}
+              style={{width:"100%",padding:"11px 16px",background:"transparent",border:"none",borderBottom:i<sugg.length-1?`1px solid ${T.border}`:"none",color:T.ink,textAlign:"left",cursor:"pointer",fontFamily:"inherit",fontSize:13,display:"flex",alignItems:"center",gap:8}}
+              onMouseEnter={e=>e.currentTarget.style.background=T.bgMuted}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              🔍 {s}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -691,7 +734,7 @@ function FlightAlertsSheet({trip,T,onClose}){
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{background:T.bgNav,borderRadius:8,padding:"6px 12px",color:T.gold,fontWeight:800,fontSize:14,letterSpacing:1}}>{f.num}</div>
                   <div style={{flex:1}}>
-                    {/* ✅ LÍNEA CORREGIDA: "f.to" en lugar de "t.to" para que lea correctamente el objeto de la iteración */}
+                    {/* ✅ CORRECCIÓN FIJADA: f.to */}
                     <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{f.from} → {f.to}</div>
                     {f.date&&<div style={{fontSize:11,color:T.inkMuted,marginTop:2}}>{f.date}</div>}
                   </div>
@@ -854,110 +897,6 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CITY SHEET
-// ─────────────────────────────────────────────────────────────────────────────
-function CitySheet({city,onClose,onBack,onUpdate,T}){
-  const[tab,sT]=useState("info");
-  const[loading,sL]=useState(false);
-  const[d,sD]=useState({desc:city.desc||"",attractions:city.attractions||[],food:city.food||[],hotel:city.hotel||{name:"",addr:"",cost:"",notes:""},transport:city.transport||"",notes:city.notes||""});
-
-  // Función manual para controlar las peticiones y evitar el Error 429
-  const handleGenerarGuia = async () => {
-    sL(true);
-    try {
-      const respuesta = await callAI(`Información turística de ${city.name}${city.country?", "+city.country:""}.
-JSON exacto (sin ningún texto adicional):
-{"desc":"2-3 frases del destino","attractions":[{"name":"emoji+nombre","price":"precio €","desc":"2 frases"}],"food":[{"name":"emoji+nombre del plato","desc":"descripción y dónde probarlo, 2 frases"}],"transport":"cómo llegar y moverse (2 frases)"}
-Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de comida.`);
-      
-      const textLimpio = respuesta.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
-      const p = JSON.parse(textLimpio);
-      const u = {...d,...p};
-      sD(u);
-      onUpdate({...city,...u});
-    } catch(e) {
-      console.error(e);
-      alert("La IA está saturada. Espera unos segundos y vuelve a pulsar el botón.");
-    }
-    sL(false);
-  };
-
-  const upd=(k,v)=>{const nd={...d,[k]:v};sD(nd);onUpdate({...city,...nd});};
-  const col=city.color||"#B45309";
-  const weather=getWeather(city.country,city.from?+city.from.split("-")[1]-1:0);
-  const TABS=[["info","◎ Info"],["hotel","🏨 Hotel"],["food","🍽 Comida"],["notas","✐ Notas"]];
-
-  return(
-    <Sheet onClose={onClose} T={T} zi={300}>
-      <Handle T={T}/>
-      <div style={{background:`linear-gradient(135deg,${col},${col}88)`,padding:"14px 16px 18px",flexShrink:0}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-          {onBack?<button onClick={e=>{e.stopPropagation();onBack();}} style={{background:"rgba(255,255,255,.15)",border:"none",borderRadius:20,height:30,padding:"0 12px 0 8px",color:"white",cursor:"pointer",fontWeight:700,fontSize:11,display:"flex",alignItems:"center",gap:4,fontFamily:"inherit"}}><span style={{fontSize:15}}>←</span>Atrás</button>:<div/>}
-          <button onClick={e=>{e.stopPropagation();onClose();}} style={{background:"rgba(255,255,255,.15)",border:"none",borderRadius:"50%",width:30,height:30,color:"white",fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
-        </div>
-        <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between"}}>
-          <div>
-            <div style={{fontSize:28,marginBottom:4}}>{city.emoji||"📍"}</div>
-            <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:22,fontWeight:900,color:"white"}}>{city.name}</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,.7)",marginTop:2}}>{fmt(city.from)} → {fmt(city.to)} · {city.nights||0} noches</div>
-          </div>
-          <div style={{background:"rgba(255,255,255,.18)",borderRadius:12,padding:"8px 12px",textAlign:"center"}}>
-            <div style={{fontSize:22}}>{weather}</div>
-            <div style={{fontSize:9,color:"rgba(255,255,255,.7)",marginTop:2,fontWeight:700}}>CLIMA</div>
-          </div>
-        </div>
-      </div>
-      <div style={{display:"flex",borderBottom:`1px solid ${T.tabBorder}`,flexShrink:0,background:T.sheet}}>
-        {TABS.map(([k,l])=><button key={k} style={{flex:1,padding:"10px 4px",background:"none",border:"none",borderBottom:tab===k?`2.5px solid ${col}`:"2.5px solid transparent",fontSize:11,cursor:"pointer",color:tab===k?col:T.inkMuted,fontWeight:tab===k?700:500,fontFamily:"inherit",transition:"color .15s"}} onClick={()=>sT(k)}>{l}</button>)}
-      </div>
-      <div style={{overflowY:"auto",padding:"16px 16px 36px",flex:1,background:T.sheet}}>
-        {loading && <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"36px 0",color:T.inkMuted}}><Spin c={col}/><div style={{fontSize:13}}>✦ Generando con IA…</div></div>}
-        
-        {!loading && !d.desc && !d.attractions?.length && tab === "info" && (
-          <div style={{textAlign:"center",padding:"30px 10px"}}>
-            <p style={{fontSize:13,color:T.inkMuted,marginBottom:16}}>Esta ciudad no tiene información turística asignada todavía.</p>
-            <button onClick={handleGenerarGuia} style={{background:col,border:"none",borderRadius:10,padding:"12px 20px",color:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 12px rgba(0,0,0,0.15)"}}>
-              ✦ Generar guía con IA
-            </button>
-          </div>
-        )}
-
-        {!loading && tab === "info" && (d.desc || d.attractions?.length > 0) && <>
-          <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:8,fontWeight:700}}>DESCRIPCIÓN</div>
-          <textarea value={d.desc} onChange={e=>upd("desc",e.target.value)} placeholder="Describe este destino…"
-            style={{width:"100%",background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",resize:"none",outline:"none",lineHeight:1.65,color:T.ink,minHeight:65,marginBottom:14,boxSizing:"border-box"}}/>
-          <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:8,fontWeight:700}}>ATRACCIONES</div>
-          {(d.attractions||[]).map((a,i)=><Expand key={i} label={a.name} sub={a.price} desc={a.desc} col={col} T={T}/>)}
-          {d.transport&&<><div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,margin:"14px 0 8px",fontWeight:700}}>TRANSPORTE</div><div style={{background:T.bgMuted,borderRadius:8,padding:"11px 13px",fontSize:13,color:T.inkMuted,lineHeight:1.65}}>{d.transport}</div></>}
-        </>}
-        
-        {!loading&&tab CONTAINER_HOTEL && tab==="hotel" &&<>
-          <div style={{background:T.bgMuted,borderRadius:12,padding:14,borderLeft:`4px solid ${col}`,marginBottom:12}}>
-            <input value={d.hotel?.name||""} onChange={e=>upd("hotel",{...d.hotel,name:e.target.value})} placeholder="Nombre del hotel"
-              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:14,fontWeight:700,color:T.ink,fontFamily:"inherit",marginBottom:5,borderBottom:`1px dashed ${T.border}`,paddingBottom:3}}/>
-            <input value={d.hotel?.addr||""} onChange={e=>upd("hotel",{...d.hotel,addr:e.target.value})} placeholder="Dirección o zona"
-              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:12,color:T.inkMuted,fontFamily:"inherit",marginBottom:5,borderBottom:`1px dashed ${T.border}`,paddingBottom:3}}/>
-            <input value={d.hotel?.cost||""} onChange={e=>upd("hotel",{...d.hotel,cost:e.target.value})} placeholder="Coste total"
-              style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,fontWeight:700,color:T.green,fontFamily:"inherit"}}/>
-          </div>
-          <textarea value={d.hotel?.notes||""} onChange={e=>upd("hotel",{...d.hotel,notes:e.target.value})} placeholder="Reserva, check-in, notas…"
-            style={{width:"100%",background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",resize:"none",outline:"none",lineHeight:1.65,color:T.ink,minHeight:75,boxSizing:"border-box"}}/>
-        </>}
-        
-        {!loading&&tab==="food"&&<>
-          <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:8,fontWeight:700}}>GASTRONOMÍA LOCAL</div>
-          {(d.food||[]).length===0&&<div style={{color:T.inkMuted,fontSize:13,padding:"20px 0",textAlign:"center"}}>Pulsa el botón de la pestaña Info para generar el contenido completo.</div>}
-          {(d.food||[]).map((f,i)=><Expand key={i} label={f.name} desc={f.desc} col={col} T={T}/>)}
-        </>}
-        
-        {!loading&&tab==="notas"&&<textarea value={d.notes||""} onChange={e=>upd("notes",e.target.value)} placeholder="Ideas, horarios, confirmaciones…"
-          style={{width:"100%",minHeight:200,background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:12,padding:13,fontSize:13,fontFamily:"inherit",resize:"vertical",outline:"none",lineHeight:1.7,color:T.ink,boxSizing:"border-box"}}/>}
-      </div>
-    </Sheet>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // SECONDARY SHEETS
 // ─────────────────────────────────────────────────────────────────────────────
 function HotelsSheet({trip,onUpdateTrip,onClose,T}){
@@ -1029,123 +968,6 @@ function BudgetSheet({trip,onUpdateTrip,onClose,T}){
   </Sheet>);
 }
 
-function TrasladosSheet({trip,onUpdateTrip,onClose,T}){
-  const trs=trip.traslados||[];
-  const defaultDate = trip.cities?.[0]?.from || "";
-  const[ni,sNi]=useState({from:"",to:"",date:defaultDate,type:"avión",cost:"",notes:""});
-
-  const add=()=>{
-    if(!ni.from||!ni.to) return;
-    onUpdateTrip({...trip, traslados:[...trs,{...ni,id:Date.now()}]});
-    sNi({from:"",to:"",date:defaultDate,type:"avión",cost:"",notes:""});
-  };
-
-  const fmtTrasladoDate = iso => {
-    if(!iso) return "";
-    try {
-      const [y,m,d] = iso.split("-");
-      return `${+d} ${MONTHS[+m-1]?.slice(0,3)} ${y}`;
-    } catch { return iso; }
-  };
-
-  const inputStyle = {background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 11px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
-
-  return(<Sheet onClose={onClose} T={T} zi={200}><Handle T={T}/>
-    <SheetHead title="Traslados" sub={trip.name} icon="✈" T={T} onClose={onClose}/>
-    <div style={{overflowY:"auto",flex:1,padding:"16px 16px 36px",background:T.sheet}}>
-
-      {trs.length===0&&(
-        <div style={{textAlign:"center",padding:"24px 0",color:T.inkMuted}}>
-          <div style={{fontSize:36,marginBottom:8}}>✈</div>
-          <div style={{fontSize:13,lineHeight:1.65}}>Sin traslados. Los que añadas aparecerán en el calendario automáticamente.</div>
-        </div>
-      )}
-
-      {trs.map(t=>(
-        <div key={t.id} style={{background:T.bgMuted,borderRadius:12,padding:13,marginBottom:10}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{fontSize:24,flexShrink:0,lineHeight:1}}>{TI[t.type]||"🗺"}</div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{t.from} → {t.to}</div>
-              <div style={{display:"flex",gap:8,marginTop:3,flexWrap:"wrap"}}>
-                {t.date&&<span style={{fontSize:11,color:T.inkMuted}}>📅 {fmtTrasladoDate(t.date)}</span>}
-                {t.cost&&<span style={{fontSize:11,color:T.gold,fontWeight:700}}>€{t.cost}</span>}
-                {t.notes&&<span style={{fontSize:11,color:T.inkMuted}}>{t.notes}</span>}
-              </div>
-            </div>
-            <button onClick={()=>onUpdateTrip({...trip,traslados:trs.filter(x=>x.id!==t.id)})}
-              style={{background:`${T.red}15`,border:`1px solid ${T.red}30`,borderRadius:8,width:30,height:30,color:T.red,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>⌫</button>
-          </div>
-          {t.date&&(
-            <div style={{marginTop:8,background:`${T.gold}12`,borderRadius:8,padding:"5px 10px",display:"inline-flex",alignItems:"center",gap:5,border:`1px solid ${T.gold}30`}}>
-              <span style={{fontSize:10}}>📅</span>
-              <span style={{fontSize:10,color:T.gold,fontWeight:700}}>Marcado en el calendario · día {+t.date.split("-")[2]}</span>
-            </div>
-          )}
-        </div>
-      ))}
-
-      <div style={{background:T.bgMuted,borderRadius:12,padding:14,marginTop:8}}>
-        <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:12,fontWeight:700}}>NUEVO TRASLADO</div>
-
-        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-          <input value={ni.from} onChange={e=>sNi(p=>({...p,from:e.target.value}))} placeholder="Origen"
-            style={{...inputStyle,flex:1}}/>
-          <span style={{color:T.gold,fontSize:16,fontWeight:700,flexShrink:0}}>→</span>
-          <input value={ni.to} onChange={e=>sNi(p=>({...p,to:e.target.value}))} placeholder="Destino"
-            style={{...inputStyle,flex:1}}/>
-        </div>
-
-        <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
-          {Object.entries(TI).map(([k,icon])=>(
-            <button key={k} onClick={()=>sNi(p=>({...p,type:k}))}
-              style={{padding:"5px 10px",borderRadius:20,border:`1.5px solid ${ni.type===k?T.gold:T.border}`,background:ni.type===k?T.gold:"transparent",color:ni.type===k?"white":T.inkMuted,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,transition:"all .14s"}}>
-              {icon} {k}
-            </button>
-          ))}
-        </div>
-
-        <div style={{marginBottom:8}}>
-          <div style={{fontSize:10,color:T.inkMuted,letterSpacing:1.5,marginBottom:4,fontWeight:600}}>FECHA DEL TRASLADO</div>
-          <input
-            type="date"
-            value={ni.date}
-            onChange={e=>sNi(p=>({...p,date:e.target.value}))}
-            min={trip.cities?.[0]?.from||""}
-            max={trip.cities?.[trip.cities.length-1]?.to||""}
-            style={{...inputStyle,colorScheme:T === DARK ? "dark" : "light"}}/>
-        </div>
-
-        <div style={{display:"flex",gap:8,marginBottom:12}}>
-          <input value={ni.cost} onChange={e=>sNi(p=>({...p,cost:e.target.value}))} placeholder="€ Coste"
-            type="number" style={{...inputStyle,flex:1}}/>
-          <input value={ni.notes} onChange={e=>sNi(p=>({...p,notes:e.target.value}))} placeholder="Notas (nº vuelo, hora…)"
-            style={{...inputStyle,flex:2}}/>
-        </div>
-
-        <button onClick={add} disabled={!ni.from||!ni.to}
-          style={{width:"100%",background:ni.from&&ni.to?T.gold:"#ccc",border:"none",borderRadius:10,padding:"12px",color:"white",fontWeight:700,fontSize:13,cursor:ni.from&&ni.to?"pointer":"default",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-          {TI[ni.type]||"✈"} Añadir traslado{ni.date?` · ${fmtTrasladoDate(ni.date)}`:""}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function NotasSheet({trip,onUpdateTrip,onClose,T}){
-  return(<Sheet onClose={onClose} T={T} zi={200}><Handle T={T}/>
-    <SheetHead title="Notas del viaje" sub={trip.name} icon="✐" T={T} onClose={onClose}/>
-    <div style={{flex:1,padding:"16px 16px 36px",display:"flex",flexDirection:"column",background:T.sheet}}>
-      <textarea value={trip.notes||""} onChange={e=>onUpdateTrip({...trip,notes:e.target.value})}
-        placeholder="Documentos, vacunas, seguros, contactos de emergencia, visados, moneda local, frases útiles…"
-        style={{flex:1,minHeight:280,background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:12,padding:14,fontSize:13,fontFamily:"inherit",resize:"none",outline:"none",lineHeight:1.75,color:T.ink,boxSizing:"border-box"}}/>
-    </div>
-  </Sheet>);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DATE PICKER
-// ─────────────────────────────────────────────────────────────────────────────
 function DatePicker({title,sub,T,onBack,onNext}){
   const now=new Date();
   const[year,sY]=useState(now.getFullYear());
@@ -1177,9 +999,6 @@ function DatePicker({title,sub,T,onBack,onNext}){
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DAY PICKER CALENDAR 
-// ─────────────────────────────────────────────────────────────────────────────
 function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onConfirm,allowAddCity,dest}){
   const numDays=dim(year,month);const fd=fdow(year,month);
   const[showAdd,sShowAdd]=useState(false);
@@ -1212,7 +1031,7 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
     sAC(c);sShowAdd(false);sNewName("");
   };
 
-  const cBg=T.calBg,cCell=T.calCell,cEmpty=T.calEmpty,cText=T.calText,cDow=T.calDow;
+  const cBg=T.calBg,cText=T.calText,cDow=T.calDow;
 
   return(
     <div style={{position:"fixed",inset:0,background:cBg,display:"flex",flexDirection:"column",zIndex:500,fontFamily:"'DM Sans',system-ui,sans-serif"}}>
@@ -1241,23 +1060,23 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
         {["L","M","X","J","V","S","D"].map(d=><div key={d} style={{background:cDow,color:T.calDowText,textAlign:"center",padding:"4px 0",fontSize:9,fontWeight:700,letterSpacing:1.5}}>{d}</div>)}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:1,flex:1,minHeight:0}}>
-        {Array(fd).fill(null).map((_,i)=><div key={`e${i}`} style={{background:cEmpty}}/>)}
+        {Array(fd).fill(null).map((_,i)=><div key={`e${i}`} style={{background:T.calEmpty}}/>)}
         {Array(numDays).fill(null).map((_,i)=>{
           const day=i+1;const owner=cityOfDay(day);
           const isAC=owner&&activeCity&&owner.name===activeCity.name;
           const today=new Date();const todayF=today.getFullYear()===year&&today.getMonth()===month&&today.getDate()===day;
           return(
             <div key={day} onClick={()=>tap(day)}
-              style={{background:owner?`${owner.color}${isAC?"40":"22"}`:cEmpty,borderTop:`2px solid ${owner?owner.color:todayF?T.gold:T.calBorder}`,padding:"4px 3px",cursor:activeCity?"pointer":"default",display:"flex",flexDirection:"column",minHeight:0,transition:"background .1s"}}
+              style={{background:owner?`${owner.color}${isAC?"40":"22"}`:T.calEmpty,borderTop:`2px solid ${owner?owner.color:todayF?T.gold:T.calBorder}`,padding:"4px 3px",cursor:activeCity?"pointer":"default",display:"flex",flexDirection:"column",minHeight:0,transition:"background .1s"}}
               onMouseEnter={e=>{if(activeCity)e.currentTarget.style.background=owner?`${owner.color}55`:T.bgMuted;}}
-              onMouseLeave={e=>{e.currentTarget.style.background=owner?`${owner.color}${isAC?"40":"22"}`:cEmpty;}}>
+              onMouseLeave={e=>{e.currentTarget.style.background=owner?`${owner.color}${isAC?"40":"22"}`:T.calEmpty;}}>
               <div style={{fontSize:10,fontWeight:700,color:todayF?T.gold:cText,lineHeight:1}}>{day}</div>
               {owner&&<div style={{fontSize:6,color:owner.color,fontWeight:700,lineHeight:1.2,marginTop:1,overflow:"hidden",whiteSpace:"nowrap"}}>{owner.emoji}</div>}
             </div>
           );
         })}
       </div>
-      <div style={{padding:"10px 16px 22px",flexShrink:0,borderTop:`1px solid ${T.border}`,background:cBg}}>
+      <div style={{padding:"10px 16px 22px",flexShrink:0,borderTop:`1px solid ${T.border}`,background:T.calBg}}>
         <button onClick={onConfirm} style={{width:"100%",background:T.gold,border:"none",borderRadius:14,padding:"14px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 24px ${T.gold}50`}}>✓ Crear calendario</button>
       </div>
       {showAdd&&(
@@ -1268,7 +1087,7 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
               style={{width:"100%",background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:10,padding:"11px 14px",fontSize:14,color:T.ink,fontFamily:"inherit",outline:"none",marginBottom:12,boxSizing:"border-box"}}/>
             <div style={{fontSize:10,color:T.inkMuted,marginBottom:8,letterSpacing:1,fontWeight:700}}>EMOJI</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:16}}>
-              {EMOJIS.map(e=><button key={e} onMouseDown={()=>sNewEmoji(e)} style={{fontSize:18,background:newEmoji===e?T.goldBg:"transparent",border:`1px solid ${newEmoji===e?T.gold:T.border}`,borderRadius:8,width:36,height:36,cursor:"pointer"}}>{e}</button>)}
+              {EMOJIS.map(e=><button key={e} onMouseDown={()=>sNewEmoji(e)} style={{fontSize:18,background:newEmoji===e?T.goldBg:"transparent",border:`1px solid ${T.border}`,borderRadius:8,width:36,height:36,cursor:"pointer"}}>{e}</button>)}
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>sShowAdd(false)} style={{flex:1,background:T.bgMuted,border:"none",borderRadius:10,padding:"11px",color:T.inkMuted,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Cancelar</button>
@@ -1297,8 +1116,6 @@ function SetupWizard({T,onCancel,onDone}){
   const[cities,sCities]=useState([]);
   const[asgn,sAsgn]=useState({});
   const[activeCity,sAC]=useState(null);
-
-  // 📸 NUEVO ESTADO: Almacena la captura de pantalla o foto en Base64
   const [img, sImg] = useState(null);
 
   const numDays=dim(year,month);
@@ -1321,11 +1138,7 @@ function SetupWizard({T,onCancel,onDone}){
 Sugiere 5-8 ciudades ordenadas GEOGRÁFICAMENTE para minimizar desplazamientos.
 Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1}]
 "order" = orden lógico de visita, "days" = días recomendados.`;
-
-      // Llamamos a la IA pasando el prompt de texto y el objeto multimodal de imagen
       const t = await callAI(promptTexto, img);
-      
-      // El Filtro Maestro ya limpia las marcas en callAI, procesamos directamente
       const parsed=JSON.parse(t);
       sAI(parsed.sort((a,b)=>(a.order||0)-(b.order||0)));
     }catch(e){
@@ -1365,7 +1178,6 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
         <div style={{fontSize:11,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:10}}>DESTINO LIBRE</div>
         <WorldSearch value={dest} onChange={sDest} T={T}/>
         
-        {/* 📸 NUEVO COMPONENTE MULTIMODAL DE ENTRADA DE IMAGEN */}
         <div style={{marginTop:14,background:T.bgMuted,padding:12,borderRadius:12,border:`1px dashed ${T.border}`}}>
           <span style={{fontSize:11,color:T.ink,fontWeight:700,display:"block",marginBottom:6}}>📸 ¿Tienes una captura de vuelos o itinerario? (Opcional)</span>
           <input type="file" accept="image/*" onChange={(e)=>{
@@ -1387,9 +1199,9 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
         <div style={{fontSize:11,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:14}}>✦ PLANTILLAS</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
           {TEMPLATES.map((tpl,i)=>(
-            <button key={i} onClick={()=>{sDest(tpl.dest);sPT(tpl);sStep(1);}}
+            <button key={tpl.id} onClick={()=>{sDest(tpl.dest);sPT(tpl);sStep(1);}}
               style={{background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:14,padding:"14px 12px",cursor:"pointer",textAlign:"left",fontFamily:"inherit",transition:"all .15s",boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=`0 4px 16px ${T.gold}25`;}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow={`0 4px 16px ${T.gold}25`};}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,.05)";}}>
               <div style={{fontSize:20,marginBottom:5}}>{tpl.emoji}</div>
               <div style={{fontSize:12,fontWeight:700,color:T.ink,lineHeight:1.3,marginBottom:5}}>{tpl.label}</div>
@@ -1428,7 +1240,7 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
         );})}
       </div>
       <div style={{padding:"10px 16px 22px",flexShrink:0,borderTop:`1px solid ${T.border}`,background:T.bg}}>
-        <button onClick={buildDays} disabled={selected.length===0} style={{width:"100%",background:selected.length?T.gold:"#ccc",border:"none",borderRadius:14,padding:"14px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
+        <button onClick={buildDays} disabled={selected.length===0} style={{width:"100%",background:selected.length?T.gold:"#ccc",border:"none",borderRadius:14,padding:"14px",color:"white",fontWeight:700,fontSize:14,cursor:selected.length?"pointer":"default",fontFamily:"inherit"}}>
           Asignar días → ({selected.length} ciudades)
         </button>
       </div>
@@ -1477,7 +1289,6 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
 
   const trasladoOfDay=useCallback(day=>{
     const d=mkiso(calYear,calMonth,day);
-
     const byDate=traslados.find(t=>t.date===d);
     if(byDate) return byDate;
 
@@ -1537,7 +1348,7 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
           )}
         </div>
         <div style={{display:"flex",gap:5}}>
-          {activeTrip&&<button onClick={()=>sShowEdit(true)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:"50%",width:30,height:30,color:"white",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"} } onClick={()=>sShowEdit(true)}>✎ Editar</button>}
+          {activeTrip&&<button onClick={()=>sShowEdit(true)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:20,height:30,padding:"0 10px",color:"rgba(255,255,255,.7)",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>✎ Editar</button>}
           <button onClick={onNewTrip} style={{background:T.gold,border:"none",borderRadius:20,height:30,padding:"0 12px",color:"white",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:3}}>
             <span style={{fontSize:14,lineHeight:1}}>+</span>Nuevo
           </button>
