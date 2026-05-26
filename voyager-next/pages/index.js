@@ -861,29 +861,26 @@ function CitySheet({city,onClose,onBack,onUpdate,T}){
   const[loading,sL]=useState(false);
   const[d,sD]=useState({desc:city.desc||"",attractions:city.attractions||[],food:city.food||[],hotel:city.hotel||{name:"",addr:"",cost:"",notes:""},transport:city.transport||"",notes:city.notes||""});
 
-  useEffect(()=>{
-    if(!city.desc&&!city.attractions?.length){
-      sL(true);
-      // CORRECCIÓN ANTICAÍDAS DEFINITIVA: Delay aleatorio para que las ciudades no llamen en masa a la vez (Evita el Error 429)
-      const delay = Math.random() * 3000;
-      const timer = setTimeout(() => {
-        callAI(`Información turística de ${city.name}${city.country?", "+city.country:""}.
+  // Función manual para controlar las peticiones y evitar el Error 429
+  const handleGenerarGuia = async () => {
+    sL(true);
+    try {
+      const respuesta = await callAI(`Información turística de ${city.name}${city.country?", "+city.country:""}.
 JSON exacto (sin ningún texto adicional):
 {"desc":"2-3 frases del destino","attractions":[{"name":"emoji+nombre","price":"precio €","desc":"2 frases"}],"food":[{"name":"emoji+nombre del plato","desc":"descripción y dónde probarlo, 2 frases"}],"transport":"cómo llegar y moverse (2 frases)"}
-Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de comida.`)
-        .then(t=>{try{
-          const textLimpio = t.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
-          const p=JSON.parse(textLimpio);
-          const u={...d,...p};
-          sD(u);
-          onUpdate({...city,...u});
-        }catch(e){console.error(e);}sL(false);})
-        .catch(()=>sL(false));
-      }, delay);
-
-      return () => clearTimeout(timer);
+Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de comida.`);
+      
+      const textLimpio = respuesta.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+      const p = JSON.parse(textLimpio);
+      const u = {...d,...p};
+      sD(u);
+      onUpdate({...city,...u});
+    } catch(e) {
+      console.error(e);
+      alert("La IA está saturada. Espera unos segundos y vuelve a pulsar el botón.");
     }
-  }, [city.id]); 
+    sL(false);
+  };
 
   const upd=(k,v)=>{const nd={...d,[k]:v};sD(nd);onUpdate({...city,...nd});};
   const col=city.color||"#B45309";
@@ -914,8 +911,18 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
         {TABS.map(([k,l])=><button key={k} style={{flex:1,padding:"10px 4px",background:"none",border:"none",borderBottom:tab===k?`2.5px solid ${col}`:"2.5px solid transparent",fontSize:11,cursor:"pointer",color:tab===k?col:T.inkMuted,fontWeight:tab===k?700:500,fontFamily:"inherit",transition:"color .15s"}} onClick={()=>sT(k)}>{l}</button>)}
       </div>
       <div style={{overflowY:"auto",padding:"16px 16px 36px",flex:1,background:T.sheet}}>
-        {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"36px 0",color:T.inkMuted}}><Spin c={col}/><div style={{fontSize:13}}>✦ Generando con IA…</div></div>}
-        {!loading&&tab==="info"&&<>
+        {loading && <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"36px 0",color:T.inkMuted}}><Spin c={col}/><div style={{fontSize:13}}>✦ Generando con IA…</div></div>}
+        
+        {!loading && !d.desc && !d.attractions?.length && tab === "info" && (
+          <div style={{textAlign:"center",padding:"30px 10px"}}>
+            <p style={{fontSize:13,color:T.inkMuted,marginBottom:16}}>Esta ciudad no tiene información turística asignada todavía.</p>
+            <button onClick={handleGenerarGuia} style={{background:col,border:"none",borderRadius:10,padding:"12px 20px",color:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 12px rgba(0,0,0,0.15)"}}>
+              ✦ Generar guía con IA
+            </button>
+          </div>
+        )}
+
+        {!loading && tab === "info" && (d.desc || d.attractions?.length > 0) && <>
           <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:8,fontWeight:700}}>DESCRIPCIÓN</div>
           <textarea value={d.desc} onChange={e=>upd("desc",e.target.value)} placeholder="Describe este destino…"
             style={{width:"100%",background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",resize:"none",outline:"none",lineHeight:1.65,color:T.ink,minHeight:65,marginBottom:14,boxSizing:"border-box"}}/>
@@ -923,7 +930,8 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
           {(d.attractions||[]).map((a,i)=><Expand key={i} label={a.name} sub={a.price} desc={a.desc} col={col} T={T}/>)}
           {d.transport&&<><div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,margin:"14px 0 8px",fontWeight:700}}>TRANSPORTE</div><div style={{background:T.bgMuted,borderRadius:8,padding:"11px 13px",fontSize:13,color:T.inkMuted,lineHeight:1.65}}>{d.transport}</div></>}
         </>}
-        {!loading&&tab==="hotel"&&<>
+        
+        {!loading&&tab CONTAINER_HOTEL && tab==="hotel" &&<>
           <div style={{background:T.bgMuted,borderRadius:12,padding:14,borderLeft:`4px solid ${col}`,marginBottom:12}}>
             <input value={d.hotel?.name||""} onChange={e=>upd("hotel",{...d.hotel,name:e.target.value})} placeholder="Nombre del hotel"
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:14,fontWeight:700,color:T.ink,fontFamily:"inherit",marginBottom:5,borderBottom:`1px dashed ${T.border}`,paddingBottom:3}}/>
@@ -935,11 +943,13 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
           <textarea value={d.hotel?.notes||""} onChange={e=>upd("hotel",{...d.hotel,notes:e.target.value})} placeholder="Reserva, check-in, notas…"
             style={{width:"100%",background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",resize:"none",outline:"none",lineHeight:1.65,color:T.ink,minHeight:75,boxSizing:"border-box"}}/>
         </>}
+        
         {!loading&&tab==="food"&&<>
           <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:8,fontWeight:700}}>GASTRONOMÍA LOCAL</div>
-          {(d.food||[]).length===0&&<div style={{color:T.inkMuted,fontSize:13,padding:"20px 0",textAlign:"center"}}>Cierra y vuelve a abrir para regenerar.</div>}
+          {(d.food||[]).length===0&&<div style={{color:T.inkMuted,fontSize:13,padding:"20px 0",textAlign:"center"}}>Pulsa el botón de la pestaña Info para generar el contenido completo.</div>}
           {(d.food||[]).map((f,i)=><Expand key={i} label={f.name} desc={f.desc} col={col} T={T}/>)}
         </>}
+        
         {!loading&&tab==="notas"&&<textarea value={d.notes||""} onChange={e=>upd("notes",e.target.value)} placeholder="Ideas, horarios, confirmaciones…"
           style={{width:"100%",minHeight:200,background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:12,padding:13,fontSize:13,fontFamily:"inherit",resize:"vertical",outline:"none",lineHeight:1.7,color:T.ink,boxSizing:"border-box"}}/>}
       </div>
