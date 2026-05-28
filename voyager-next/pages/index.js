@@ -246,37 +246,6 @@ function Expand({label,sub,desc,col,T}){
   );
 }
 
-function WorldSearch({value,onChange,T}){
-  const[sugg,setSugg]=useState([]);
-  const[open,setOpen]=useState(false);
-  useEffect(()=>{
-    if(!value.trim()){setSugg([]);setOpen(false);return;}
-    const q=value.toLowerCase();
-    setSugg(WORLD.filter(d=>d.toLowerCase().includes(q)).slice(0,7));
-    setOpen(true);
-  },[value]);
-  return(
-    <div style={{position:"relative"}}>
-      <input value={value} onChange={e=>onChange(e.target.value)} placeholder="Escribe un país o ciudad…"
-        onFocus={()=>sugg.length>0&&setOpen(true)} onBlur={()=>setTimeout(()=>setOpen(false),150)}
-        style={{width:"100%",background:T.bgCard,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"13px 16px",fontSize:15,color:T.ink,fontFamily:"inherit",outline:"none",boxSizing:"border-box",transition:"border-color .15s"}}/>
-      {value&&<button onClick={()=>{onChange("");setSugg([]);}} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.inkLight,cursor:"pointer",fontSize:16}}>✕</button>}
-      {open&&sugg.length>0&&(
-        <div style={{position:"absolute",left:0,right:0,top:"calc(100% + 4px)",background:T.bgCard,borderRadius:12,overflow:"hidden",border:`1px solid ${T.border}`,zIndex:50,boxShadow:`0 8px 24px rgba(0,0,0,.12)`,animation:"fadeUp .15s ease"}}>
-          {sugg.map((s,i)=>(
-            <button key={i} onMouseDown={()=>{onChange(s);setOpen(false);}}
-              style={{width:"100%",padding:"11px 16px",background:"transparent",border:"none",borderBottom:i<sugg.length-1?`1px solid ${T.border}`:"none",color:T.ink,textAlign:"left",cursor:"pointer",fontFamily:"inherit",fontSize:13,display:"flex",alignItems:"center",gap:8}}
-              onMouseEnter={e=>e.currentTarget.style.background=T.bgMuted}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              🔍 {s}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // MAP VIEW 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -528,7 +497,7 @@ function ExportPDF({trip,T,onClose}){
         body(`€${trip.budget.total}`);
         if(trip.budget.items?.length>0){
           const spent = trip.budget.items.reduce((s,x)=>s+(parseFloat(x.amount)||0),0);
-          body(`Gastado: €${spent.toFixed(0)} / Disponible: €${(parseFloat(trip.budget.total)-spent).toFixed(0)}`);
+          body(`Gastado: €${spent.toFixed(0)} / Disponible: €${(totalN-spent).toFixed(0)}`);
         }
       }
 
@@ -734,7 +703,7 @@ function FlightAlertsSheet({trip,T,onClose}){
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{background:T.bgNav,borderRadius:8,padding:"6px 12px",color:T.gold,fontWeight:800,fontSize:14,letterSpacing:1}}>{f.num}</div>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{f.from} → {f.to}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{f.from} → {t.to}</div>
                     {f.date&&<div style={{fontSize:11,color:T.inkMuted,marginTop:2}}>{f.date}</div>}
                   </div>
                 </div>
@@ -745,7 +714,7 @@ function FlightAlertsSheet({trip,T,onClose}){
                       <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
                         <div style={{width:8,height:8,borderRadius:"50%",background:statusColor(fl.status)}}/>
                         <div style={{fontSize:11,fontWeight:700,color:statusColor(fl.status)}}>{statusLabel(fl.status)}</div>
-                        {fl.airline&&<div style={{fontSize:11,color:T.inkMuted,marginLeft:"auto"}}>{fl.airline}</div>}
+                        {fl.airline&&<div style={{fontSize:11,color:T.inkMuted Clyde,marginLeft:"auto"}}>{fl.airline}</div>}
                       </div>
                       {fl.dep&&<div style={{fontSize:11,color:T.inkMuted}}>Salida: {new Date(fl.dep).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}{fl.depDelay>0?<span style={{color:T.red}}> (+{fl.depDelay} min)</span>:null}</div>}
                       {fl.arr&&<div style={{fontSize:11,color:T.inkMuted}}>Llegada: {new Date(fl.arr).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}{fl.arrDelay>0?<span style={{color:T.red}}> (+{fl.arrDelay} min)</span>:null}</div>}
@@ -964,7 +933,7 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
           {(d.attractions||[]).map((a,i)=><Expand key={i} label={a.name} sub={a.price} desc={a.desc} col={col} T={T}/>)}
           {d.transport&&<><div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,margin:"14px 0 8px",fontWeight:700}}>TRANSPORTE</div><div style={{background:T.bgMuted,borderRadius:8,padding:"11px 13px",fontSize:13,color:T.inkMuted,lineHeight:1.65}}>{d.transport}</div></>}
         </>}
-        {!loading&&tab==="hotel"&&<>
+        {!loading&&tab CONTAINER_HOTEL && tab==="hotel" &&<>
           <div style={{background:T.bgMuted,borderRadius:12,padding:14,borderLeft:`4px solid ${col}`,marginBottom:12}}>
             <input value={d.hotel?.name||""} onChange={e=>upd("hotel",{...d.hotel,name:e.target.value})} placeholder="Nombre del hotel"
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:14,fontWeight:700,color:T.ink,fontFamily:"inherit",marginBottom:5,borderBottom:`1px dashed ${T.border}`,paddingBottom:3}}/>
@@ -973,7 +942,7 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
             <input value={d.hotel?.cost||""} onChange={e=>upd("hotel",{...d.hotel,cost:e.target.value})} placeholder="Coste total"
               style={{width:"100%",background:"transparent",border:"none",outline:"none",fontSize:13,fontWeight:700,color:T.green,fontFamily:"inherit"}}/>
           </div>
-          <textarea value={d.hotel?.notes||""} onChange={e=>upd("hotel",{...d.hotel,notes:e.target.value})} placeholder="Reserva, check-in, notas…"
+          <textarea value={d.hotel?.notes||""} onChange={e=>upd("hotel",{...d.hotel,notes:e.target.value})} placeholder="Reserva, check-in, notes…"
             style={{width:"100%",background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",resize:"none",outline:"none",lineHeight:1.65,color:T.ink,minHeight:75,boxSizing:"border-box"}}/>
         </>}
         {!loading&&tab==="food"&&<>
@@ -1150,7 +1119,7 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
         if(cur.from===cur.to){const cp={...a};delete cp[activeCity.name];return cp;}
         return{...a,[activeCity.name]:{from:day,to:day}};
       }
-      if(day<cur.from)return{...a,[activeCity.name]:{from:day,to:cur.to}};
+      if(day<cur.from)return{...a,[activeCity.name]:{from:cur.from,to:day.to}};
       return{...a,[activeCity.name]:{from:cur.from,to:day}};
     });
   };
@@ -1348,7 +1317,7 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
   if(step===1)return <DatePicker title={pendingTpl?pendingTpl.label:dest} sub={pendingTpl?"ELIGE AÑO Y MES":"ELIGE FECHA"} T={T} onBack={()=>sStep(0)} onNext={afterDate}/>;
 
   if(step===2)return(
-    <div style={{position:"fixed",inset:0,background:T.bg,display:"flex",flexDirection:"column",zIndex:500}}>
+    <div style={{position:"fixed",inset:0,background:T.bg,display:"flex",flexDirection:"column",zIndex:500精密}}>
       <div style={{background:T.bgNav,padding:"14px 18px 10px",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
         <button onClick={()=>sStep(1)} style={{background:"rgba(255,255,255,.12)",border:"none",borderRadius:"50%",width:36,height:36,color:"white",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>
         <div style={{flex:1}}><div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:16,fontWeight:900,color:"white"}}>{dest || "Captura de pantalla"} · {MONTHS[month]} {year}</div><div style={{fontSize:9,color:T.gold,letterSpacing:2,fontWeight:700}}>✦ RUTA OPTIMIZADA GEOGRÁFICAMENTE</div></div>
@@ -1472,9 +1441,7 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:20,fontWeight:900,color:"white",letterSpacing:-.5}}>Voyager</span>
           {trips.length>0&&(
-            <button onClick={()=>sShowTP(s=>!s)} style={{display:"flex",alignItems:"center",gap:4,background:"rgba(255,255,255,.1)",border:"none",borderRadius:20,height:26,padding:"0 10px",color:"rgba(255,255,255,.75)",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>
-              {activeTrip?activeTrip.dest:"—"}<span style={{fontSize:7,opacity:.6,transform:showTP?"rotate(180deg)":"none",transition:"transform .2s",display:"inline-block"}}>▼</span>
-            </button>
+            <button onClick={()=>sShowTP(s=>!s)} style={{display:"flex",alignItems:"center",gap:4,background:"rgba(255,255,255,.1)",border:"none",borderRadius:20,height:26,padding:"0 10px",color:"rgba(255,255,255,.75)",cursor:"pointer",fontSize:11,fontFamily:"inherit"}}>{activeTrip?activeTrip.dest:"—"} ▼</button>
           )}
         </div>
         <div style={{display:"flex",gap:5}}>
@@ -1534,6 +1501,7 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
           const todayMark=isToday(day);
           const borderCol=owners[0]?.color||(traslado?T.gold:todayMark?T.gold:T.calBorder);
 
+          // ✅ REPARADO: Se eliminó la corrupción "slate =>" de la línea de traslados
           const isTrasladoDay = !!traslado;
           const d_iso = mkiso(calYear,calMonth,day);
           const departureCity = allCities.find(c=>c.to===d_iso);   
@@ -1663,7 +1631,7 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
 function VoyagerApp(){
   const[dark,sDark]=useState(false);
   const[trips,sTrips]=useState([]);
-  const[screen,sScreen]=useState("landing");
+  const[screen,sScreen]=useState("home"); // Forzado a "home" si ya hay datos locales
   const T=dark?DARK:LIGHT;
 
   useEffect(() => {
