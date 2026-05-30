@@ -2,48 +2,63 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AI HELPER – llamada robusta a /api/ai con reintentos y timeout
+// AI HELPER – llamada robusta a /api/ai con reintentos, timeout y cola global
+// para evitar que múltiples ciudades saturen el límite de Gemini (429).
 // ─────────────────────────────────────────────────────────────────────────────
+const _aiQueue = { running: 0, max: 1, pending: [] };
+function _runQueue() {
+  if (_aiQueue.running >= _aiQueue.max || _aiQueue.pending.length === 0) return;
+  const { resolve, fn } = _aiQueue.pending.shift();
+  _aiQueue.running++;
+  fn().then(v => { _aiQueue.running--; resolve(v); _runQueue(); })
+      .catch(e => { _aiQueue.running--; resolve(Promise.reject(e)); _runQueue(); });
+}
+function _enqueue(fn) {
+  return new Promise(resolve => { _aiQueue.pending.push({ resolve, fn }); _runQueue(); });
+}
+
 async function callAI(prompt, image = null, retries = 2) {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-    try {
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: controller.signal,
-        body: JSON.stringify({ prompt, image }),
-      });
-      clearTimeout(timeoutId);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        // Don't retry 4xx errors (bad request)
-        if (res.status >= 400 && res.status < 500) {
-          throw new Error(err.error || `HTTP ${res.status}`);
+  return _enqueue(async () => {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      try {
+        const res = await fetch("/api/ai", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ prompt, image }),
+        });
+        clearTimeout(timeoutId);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          // No reintentar errores 4xx (incluyendo 429)
+          if (res.status >= 400 && res.status < 500) {
+            throw new Error(err.error || `HTTP ${res.status}`);
+          }
+          if (attempt === retries) throw new Error(err.error || `HTTP ${res.status}`);
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
         }
-        if (attempt === retries) throw new Error(err.error || `HTTP ${res.status}`);
+        const data = await res.json();
+        let text = data.text || "";
+        return text
+          .replace(/^```json\s*/i, "")
+          .replace(/^```\s*/i, "")
+          .replace(/```\s*$/i, "")
+          .trim();
+      } catch (e) {
+        clearTimeout(timeoutId);
+        if (e.name === "AbortError") {
+          if (attempt === retries) throw new Error("La IA tardó demasiado. Inténtalo de nuevo.");
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
+        if (attempt === retries) throw e;
         await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-        continue;
       }
-      const data = await res.json();
-      let text = data.text || "";
-      return text
-        .replace(/^```json\s*/i, "")
-        .replace(/^```\s*/i, "")
-        .replace(/```\s*$/i, "")
-        .trim();
-    } catch (e) {
-      clearTimeout(timeoutId);
-      if (e.name === "AbortError") {
-        if (attempt === retries) throw new Error("La IA tardó demasiado. Inténtalo de nuevo.");
-        await new Promise(r => setTimeout(r, 1000));
-        continue;
-      }
-      if (attempt === retries) throw e;
-      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
     }
-  }
+  });
 }
 
 const LIGHT = {
@@ -1005,6 +1020,217 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
         </>}
         {!loading&&tab==="notas"&&<textarea value={d.notes||""} onChange={e=>upd("notes",e.target.value)} placeholder="Ideas, horarios, confirmaciones…"
           style={{width:"100%",minHeight:200,background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:12,padding:13,fontSize:13,fontFamily:"inherit",resize:"vertical",outline:"none",lineHeight:1.7,color:T.ink,boxSizing:"border-box"}}/>}
+      </div>
+    </Sheet>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HOTELS SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+function HotelsSheet({trip,onUpdateTrip,onClose,T}){
+  const[saving,sSaving]=useState(null);
+  const inputSt={background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 11px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"};
+
+  const updCity=(cityId,hotelData)=>{
+    const updated=trip.cities.map(c=>c.id===cityId?{...c,hotel:{...c.hotel,...hotelData}}:c);
+    onUpdateTrip({...trip,cities:updated});
+    sSaving(cityId);
+    setTimeout(()=>sSaving(null),1200);
+  };
+
+  return(
+    <Sheet onClose={onClose} T={T} zi={200}>
+      <Handle T={T}/>
+      <SheetHead title="Hoteles" sub={trip.name} icon="🏨" T={T} onClose={onClose}/>
+      <div style={{overflowY:"auto",flex:1,padding:"16px 16px 40px",background:T.sheet}}>
+        {trip.cities.length===0&&(
+          <div style={{textAlign:"center",padding:"30px 0",color:T.inkMuted}}>
+            <div style={{fontSize:36,marginBottom:8}}>🏨</div>
+            <div style={{fontSize:13}}>Añade ciudades al itinerario primero.</div>
+          </div>
+        )}
+        {trip.cities.map(c=>{
+          const h=c.hotel||{name:"",addr:"",cost:"",notes:""};
+          const col=c.color||T.gold;
+          return(
+            <div key={c.id} style={{marginBottom:16,background:T.bgMuted,borderRadius:14,overflow:"hidden",border:`1px solid ${T.border}`}}>
+              <div style={{background:`linear-gradient(90deg,${col}22,${col}08)`,borderBottom:`1px solid ${col}30`,padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:18}}>{c.emoji||"📍"}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{c.name}</div>
+                  <div style={{fontSize:11,color:T.inkMuted}}>{fmt(c.from)} → {fmt(c.to)} · {c.nights||0} noches</div>
+                </div>
+                {saving===c.id&&<span style={{fontSize:11,color:T.green,fontWeight:700}}>✓ Guardado</span>}
+                {h.name&&<div style={{background:`${col}20`,border:`1px solid ${col}40`,borderRadius:20,padding:"2px 9px",fontSize:10,color:col,fontWeight:700}}>Añadido</div>}
+              </div>
+              <div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:8}}>
+                <input value={h.name||""} onChange={e=>updCity(c.id,{name:e.target.value})}
+                  placeholder="Nombre del hotel o alojamiento" style={inputSt}/>
+                <input value={h.addr||""} onChange={e=>updCity(c.id,{addr:e.target.value})}
+                  placeholder="📍 Dirección" style={inputSt}/>
+                <div style={{display:"flex",gap:8}}>
+                  <input value={h.cost||""} onChange={e=>updCity(c.id,{cost:e.target.value})}
+                    placeholder="€ Coste total" type="number" style={{...inputSt,flex:1}}/>
+                  <div style={{background:`${T.gold}15`,border:`1px solid ${T.gold}30`,borderRadius:8,padding:"9px 12px",fontSize:12,color:T.gold,fontWeight:700,whiteSpace:"nowrap",display:"flex",alignItems:"center"}}>
+                    {c.nights||0} noches
+                  </div>
+                </div>
+                {h.cost&&c.nights&&(
+                  <div style={{fontSize:11,color:T.inkMuted,paddingLeft:2}}>
+                    ≈ €{(parseFloat(h.cost)/c.nights).toFixed(0)} por noche
+                  </div>
+                )}
+                <input value={h.notes||""} onChange={e=>updCity(c.id,{notes:e.target.value})}
+                  placeholder="✐ Notas (check-in, wifi, desayuno…)" style={inputSt}/>
+              </div>
+            </div>
+          );
+        })}
+
+        {trip.cities.some(c=>c.hotel?.cost)&&(
+          <div style={{background:`${T.gold}12`,border:`1px solid ${T.gold}30`,borderRadius:12,padding:"12px 16px",marginTop:4}}>
+            <div style={{fontSize:11,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:6}}>TOTAL ALOJAMIENTO</div>
+            <div style={{fontSize:22,fontWeight:900,color:T.gold,fontFamily:"'Playfair Display',Georgia,serif"}}>
+              €{trip.cities.reduce((s,c)=>s+(parseFloat(c.hotel?.cost)||0),0).toFixed(0)}
+            </div>
+            <div style={{fontSize:11,color:T.inkMuted,marginTop:2}}>
+              {trip.cities.reduce((s,c)=>s+(c.nights||0),0)} noches en total
+            </div>
+          </div>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BUDGET SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+function BudgetSheet({trip,onUpdateTrip,onClose,T}){
+  const b=trip.budget||{total:"",items:[]};
+  const items=b.items||[];
+  const CATS=["🏨 Alojamiento","✈ Transporte","🍽 Comida","🎭 Actividades","🛍 Compras","💊 Salud","📡 Comunicación","🗺 Otros"];
+  const[ni,sNi]=useState({name:"",amount:"",cat:CATS[0]});
+
+  const spent=items.reduce((s,x)=>s+(parseFloat(x.amount)||0),0);
+  const total=parseFloat(b.total)||0;
+  const avail=total-spent;
+  const pct=total>0?Math.min(100,(spent/total)*100):0;
+
+  const upd=patch=>onUpdateTrip({...trip,budget:{...b,...patch}});
+  const addItem=()=>{
+    if(!ni.name||!ni.amount)return;
+    upd({items:[...items,{...ni,id:Date.now()}]});
+    sNi(p=>({...p,name:"",amount:""}));
+  };
+  const delItem=id=>upd({items:items.filter(x=>x.id!==id)});
+
+  const inputSt={background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 11px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none",boxSizing:"border-box"};
+
+  const catColor=cat=>{
+    const map={"🏨":T.gold,"✈":"#2563EB","🍽":"#DC2626","🎭":"#7C3AED","🛍":"#059669","💊":"#0D9488","📡":"#9333EA","🗺":T.inkMuted};
+    const key=cat?.charAt?.(0);
+    return map[key]||T.inkMuted;
+  };
+
+  return(
+    <Sheet onClose={onClose} T={T} zi={200}>
+      <Handle T={T}/>
+      <SheetHead title="Presupuesto" sub={trip.name} icon="◈" T={T} onClose={onClose}/>
+      <div style={{overflowY:"auto",flex:1,padding:"16px 16px 40px",background:T.sheet}}>
+
+        {/* Presupuesto total */}
+        <div style={{background:T.bgMuted,borderRadius:14,padding:"14px 16px",marginBottom:14}}>
+          <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:6}}>PRESUPUESTO TOTAL DEL VIAJE</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:16,color:T.gold,fontWeight:700}}>€</span>
+            <input value={b.total||""} onChange={e=>upd({total:e.target.value})}
+              placeholder="0" type="number"
+              style={{...inputSt,flex:1,fontSize:22,fontWeight:900,fontFamily:"'Playfair Display',Georgia,serif",color:T.gold,border:"none",background:"transparent",padding:"0"}}/>
+          </div>
+          {total>0&&(
+            <>
+              <div style={{marginTop:12,height:8,background:T.border,borderRadius:4,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${pct}%`,background:pct>90?T.red:pct>70?T.gold:T.green,borderRadius:4,transition:"width .4s ease"}}/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+                <span style={{fontSize:11,color:T.inkMuted}}>Gastado: <strong style={{color:T.ink}}>€{spent.toFixed(0)}</strong></span>
+                <span style={{fontSize:11,color:avail>=0?T.green:T.red,fontWeight:700}}>
+                  {avail>=0?"Disponible":"Excedido"}: €{Math.abs(avail).toFixed(0)}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Lista de gastos */}
+        {items.length===0&&(
+          <div style={{textAlign:"center",padding:"20px 0 14px",color:T.inkMuted}}>
+            <div style={{fontSize:32,marginBottom:8}}>◈</div>
+            <div style={{fontSize:13,lineHeight:1.65}}>Sin gastos aún. Añade tu primer gasto.</div>
+          </div>
+        )}
+
+        {items.map(it=>(
+          <div key={it.id} style={{background:T.bgMuted,borderRadius:11,padding:"11px 13px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:36,height:36,borderRadius:10,background:`${catColor(it.cat)}18`,border:`1px solid ${catColor(it.cat)}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
+              {it.cat?.split(" ")?.[0]||"💶"}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:600,color:T.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.name}</div>
+              <div style={{fontSize:10,color:T.inkMuted,marginTop:1}}>{it.cat}</div>
+            </div>
+            <div style={{fontSize:15,fontWeight:800,color:catColor(it.cat),flexShrink:0}}>€{parseFloat(it.amount).toFixed(0)}</div>
+            <button onClick={()=>delItem(it.id)}
+              style={{background:`${T.red}15`,border:`1px solid ${T.red}30`,borderRadius:8,width:28,height:28,color:T.red,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>⌫</button>
+          </div>
+        ))}
+
+        {/* Desglose por categoría */}
+        {items.length>0&&(
+          <div style={{background:T.bgMuted,borderRadius:12,padding:"12px 14px",marginTop:4,marginBottom:14}}>
+            <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:10}}>DESGLOSE</div>
+            {CATS.map(cat=>{
+              const catTotal=items.filter(x=>x.cat===cat).reduce((s,x)=>s+(parseFloat(x.amount)||0),0);
+              if(!catTotal)return null;
+              const col=catColor(cat);
+              return(
+                <div key={cat} style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+                  <span style={{fontSize:13,width:20}}>{cat.split(" ")[0]}</span>
+                  <div style={{flex:1,height:5,background:T.border,borderRadius:3,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${total?Math.min(100,(catTotal/total)*100):50}%`,background:col,borderRadius:3}}/>
+                  </div>
+                  <span style={{fontSize:11,fontWeight:700,color:col,width:44,textAlign:"right"}}>€{catTotal.toFixed(0)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Añadir gasto */}
+        <div style={{background:T.bgMuted,borderRadius:12,padding:"14px",border:`1px dashed ${T.border}`}}>
+          <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:10}}>NUEVO GASTO</div>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <input value={ni.name} onChange={e=>sNi(p=>({...p,name:e.target.value}))}
+              placeholder="Descripción del gasto" style={{...inputSt,flex:1}}/>
+            <input value={ni.amount} onChange={e=>sNi(p=>({...p,amount:e.target.value}))}
+              placeholder="€" type="number" style={{...inputSt,width:80}}/>
+          </div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+            {CATS.map(cat=>(
+              <button key={cat} onClick={()=>sNi(p=>({...p,cat}))}
+                style={{padding:"4px 9px",borderRadius:20,border:`1.5px solid ${ni.cat===cat?catColor(cat):T.border}`,background:ni.cat===cat?`${catColor(cat)}18`:"transparent",color:ni.cat===cat?catColor(cat):T.inkMuted,fontSize:11,fontWeight:ni.cat===cat?700:500,cursor:"pointer",fontFamily:"inherit",transition:"all .14s"}}>
+                {cat}
+              </button>
+            ))}
+          </div>
+          <button onClick={addItem} disabled={!ni.name||!ni.amount}
+            style={{width:"100%",background:ni.name&&ni.amount?T.gold:"#ccc",border:"none",borderRadius:10,padding:"12px",color:"white",fontWeight:700,fontSize:13,cursor:ni.name&&ni.amount?"pointer":"default",fontFamily:"inherit"}}>
+            + Añadir gasto
+          </button>
+        </div>
+
       </div>
     </Sheet>
   );
