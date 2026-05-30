@@ -2,26 +2,48 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AI HELPER – Llama a /api/ai de manera relativa y limpia para evitar errores
+// AI HELPER – llamada robusta a /api/ai con reintentos y timeout
 // ─────────────────────────────────────────────────────────────────────────────
-async function callAI(prompt, image = null) {
-  const res = await fetch("/api/ai", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, image }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
+async function callAI(prompt, image = null, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ prompt, image }),
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        // Don't retry 4xx errors (bad request)
+        if (res.status >= 400 && res.status < 500) {
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+        if (attempt === retries) throw new Error(err.error || `HTTP ${res.status}`);
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      const data = await res.json();
+      let text = data.text || "";
+      return text
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/```\s*$/i, "")
+        .trim();
+    } catch (e) {
+      clearTimeout(timeoutId);
+      if (e.name === "AbortError") {
+        if (attempt === retries) throw new Error("La IA tardó demasiado. Inténtalo de nuevo.");
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      if (attempt === retries) throw e;
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    }
   }
-  const data = await res.json();
-  let text = data.text || "";
-  
-  return text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
 }
 
 const LIGHT = {
@@ -317,7 +339,7 @@ function MapView({cities,T,onClose}){
     if(!document.getElementById("leaflet-css")){
       const link = document.createElement("link");
       link.id="leaflet-css"; link.rel="stylesheet";
-      link.href="[https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css](https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css)";
+      link.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
       document.head.appendChild(link);
     }
 
@@ -325,7 +347,7 @@ function MapView({cities,T,onClose}){
       initMap();
     } else {
       const s = document.createElement("script");
-      s.src="[https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js](https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js)";
+      s.src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
       s.onload = initMap;
       document.head.appendChild(s);
     }
@@ -425,7 +447,7 @@ function ExportPDF({trip,T,onClose}){
       if(!window.jspdf){
         await new Promise((res,rej)=>{
           const s=document.createElement("script");
-          s.src="[https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js](https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js)";
+          s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
           s.onload=res; s.onerror=rej;
           document.head.appendChild(s);
         });
@@ -845,7 +867,7 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
               2. Reglas de seguridad: pon read: true, write: true.<br/>
               3. Copia la URL de la base de datos:
             </div>
-            <input value={fbUrl} onChange={e=>setFbUrl(e.target.value)} placeholder="[https://tu-proyecto.firebaseio.com](https://tu-proyecto.firebaseio.com)"
+            <input value={fbUrl} onChange={e=>setFbUrl(e.target.value)} placeholder="https://tu-proyecto.firebaseio.com"
               style={{width:"100%",background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
             <button onClick={saveFb} style={{width:"100%",background:T.gold,border:"none",borderRadius:8,padding:"11px",color:"white",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Guardar</button>
           </div>
@@ -1387,6 +1409,39 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// EDIT DAYS MODAL — extracted from HomeScreen to respect React Rules of Hooks
+// ─────────────────────────────────────────────────────────────────────────────
+function EditDaysModal({trip,onClose,onUpdateTrip,T}){
+  const initAsgn={};
+  trip.cities.forEach(c=>{
+    const f=isoDay(c.from,trip.year,trip.month);
+    const t2=isoDay(c.to,trip.year,trip.month);
+    if(f&&t2)initAsgn[c.name]={from:f,to:t2};
+  });
+  const[editCities,setEC]=useState(trip.cities.map(c=>({...c})));
+  const[editAsgn,setEA]=useState(initAsgn);
+  const[editAC,setEAC]=useState(trip.cities[0]||null);
+  return(
+    <div style={{position:"fixed",inset:0,zIndex:200}}>
+      <DayPickerCal year={trip.year} month={trip.month}
+        cities={editCities} asgn={editAsgn} sAsgn={setEA}
+        activeCity={editAC} sAC={setEAC} T={T}
+        onBack={onClose}
+        onConfirm={()=>{
+          const updated=editCities.map(c=>{
+            const r=editAsgn[c.name];
+            if(!r)return c;
+            return{...c,from:mkiso(trip.year,trip.month,r.from),to:mkiso(trip.year,trip.month,r.to),nights:r.to-r.from+1};
+          });
+          onUpdateTrip({...trip,cities:updated});
+          onClose();
+        }}
+        allowAddCity={false} dest={trip.dest}/>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // HOME SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAddTrip,T}){
@@ -1628,26 +1683,7 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
       {showPDF&&activeTrip&&<ExportPDF trip={activeTrip} T={T} onClose={()=>sShowPDF(false)}/>}
       {showFlights&&activeTrip&&<FlightAlertsSheet trip={activeTrip} T={T} onClose={()=>sShowFlights(false)}/>}
       {showShare&&activeTrip&&<ShareSheet trip={activeTrip} T={T} onClose={()=>sShowShare(false)} onImportTrip={t=>{onAddTrip&&onAddTrip({...t,id:Date.now()});sShowShare(false);}}/>}
-      {showEdit&&activeTrip&&(()=>    {
-        const initAsgn={};
-        activeTrip.cities.forEach(c=>{const f=isoDay(c.from,activeTrip.year,activeTrip.month);const t2=isoDay(c.to,activeTrip.year,activeTrip.month);if(f&&t2)initAsgn[c.name]={from:f,to:t2};});
-        const[editCities,setEC]=useState(activeTrip.cities.map(c=>({...c})));
-        const[editAsgn,setEA]=useState(initAsgn);
-        const[editAC,setEAC]=useState(activeTrip.cities[0]||null);
-        return(
-          <div style={{position:"fixed",inset:0,zIndex:200}}>
-            <DayPickerCal year={activeTrip.year} month={activeTrip.month}
-              cities={editCities} asgn={editAsgn} sAsgn={setEA}
-              activeCity={editAC} sAC={setEAC} T={T}
-              onBack={()=>sShowEdit(false)}
-              onConfirm={()=>{
-                const updated=editCities.map(c=>{const r=editAsgn[c.name];if(!r)return c;return{...c,from:mkiso(activeTrip.year,activeTrip.month,r.from),to:mkiso(activeTrip.year,activeTrip.month,r.to),nights:r.to-r.from+1};});
-                onUpdateTrip({...activeTrip,cities:updated});sShowEdit(false);
-              }}
-              allowAddCity={false} dest={activeTrip.dest}/>
-          </div>
-        );
-      })()}
+      {showEdit&&activeTrip&&<EditDaysModal trip={activeTrip} onClose={()=>sShowEdit(false)} onUpdateTrip={onUpdateTrip} T={T}/>}
       {selCity&&activeTrip&&<CitySheet city={selCity} onClose={()=>sSC(null)} onBack={()=>sSC(null)} onUpdate={upd=>{const updatedCities=activeTrip.cities.map(c=>c.id===upd.id?upd:c);onUpdateTrip({...activeTrip,cities: updatedCities});sSC(upd);}} T={T}/>}
       {sheet       ==="hotels"&&activeTrip&&<HotelsSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
       {sheet==="budget"&&activeTrip&&<BudgetSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
