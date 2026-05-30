@@ -1,17 +1,32 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 
+// VOYAGER AI v2.2 — Build verificado. Si ves este comentario en GitHub, tienes el archivo correcto.
+
 // ─────────────────────────────────────────────────────────────────────────────
-// AI HELPER – llamada robusta a /api/ai con reintentos, timeout y cola global
-// para evitar que múltiples ciudades saturen el límite de Gemini (429).
+// CACHÉ de ciudades en localStorage — evita repetir llamadas a la IA
 // ─────────────────────────────────────────────────────────────────────────────
-const _aiQueue = { running: 0, max: 1, pending: [] };
+function getCityCache(cityName){
+  try{const k=`vg_city_${cityName.toLowerCase().replace(/\s+/g,"_")}`;const s=localStorage.getItem(k);return s?JSON.parse(s):null;}catch{return null;}
+}
+function setCityCache(cityName,data){
+  try{const k=`vg_city_${cityName.toLowerCase().replace(/\s+/g,"_")}`;localStorage.setItem(k,JSON.stringify(data));}catch{}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI HELPER – cola con pausa de 4 s entre llamadas (límite Gemini: 15 RPM)
+// ─────────────────────────────────────────────────────────────────────────────
+const _aiQueue = { running: 0, max: 1, pending: [], lastFinish: 0 };
 function _runQueue() {
   if (_aiQueue.running >= _aiQueue.max || _aiQueue.pending.length === 0) return;
-  const { resolve, fn } = _aiQueue.pending.shift();
-  _aiQueue.running++;
-  fn().then(v => { _aiQueue.running--; resolve(v); _runQueue(); })
-      .catch(e => { _aiQueue.running--; resolve(Promise.reject(e)); _runQueue(); });
+  const wait = Math.max(0, _aiQueue.lastFinish + 4200 - Date.now()); // ≥4.2s entre llamadas
+  setTimeout(() => {
+    if (_aiQueue.pending.length === 0) return;
+    const { resolve, fn } = _aiQueue.pending.shift();
+    _aiQueue.running++;
+    fn().then(v  => { _aiQueue.running--; _aiQueue.lastFinish = Date.now(); resolve(v);               _runQueue(); })
+        .catch(e => { _aiQueue.running--; _aiQueue.lastFinish = Date.now(); resolve(Promise.reject(e)); _runQueue(); });
+  }, wait);
 }
 function _enqueue(fn) {
   return new Promise(resolve => { _aiQueue.pending.push({ resolve, fn }); _runQueue(); });
@@ -938,30 +953,41 @@ function ShareSheet({trip,onClose,onImportTrip,T}){
 function CitySheet({city,onClose,onBack,onUpdate,T}){
   const[tab,sT]=useState("info");
   const[loading,sL]=useState(false);
-  const[d,sD]=useState({desc:city.desc||"",attractions:city.attractions||[],food:city.food||[],hotel:city.hotel||{name:"",addr:"",cost:"",notes:""},transport:city.transport||"",notes:city.notes||""});
+  const[aiErr,sAiErr]=useState("");
+  const[d,sD]=useState(()=>{
+    // Inicializar desde caché si existe, para no hacer llamada a la IA
+    const cached = getCityCache(city.name);
+    return {
+      desc:       city.desc        || cached?.desc        || "",
+      attractions:city.attractions?.length ? city.attractions : (cached?.attractions || []),
+      food:       city.food?.length        ? city.food        : (cached?.food        || []),
+      hotel:      city.hotel               || {name:"",addr:"",cost:"",notes:""},
+      transport:  city.transport   || cached?.transport   || "",
+      notes:      city.notes       || "",
+    };
+  });
 
-  useEffect(()=>{
-    if(!city.desc&&!city.attractions?.length){
-      sL(true);
-      const delay = Math.random() * 3000;
-      const timer = setTimeout(() => {
-        callAI(`Información turística de ${city.name}${city.country?", "+city.country:""}.
+  // Datos ya disponibles (guardados o en caché)
+  const hasData = !!(d.desc || d.attractions?.length);
+
+  const generateAI = () => {
+    sL(true); sAiErr("");
+    callAI(`Información turística de ${city.name}${city.country?", "+city.country:""}.
 JSON exacto (sin ningún texto adicional):
 {"desc":"2-3 frases del destino","attractions":[{"name":"emoji+nombre","price":"precio €","desc":"2 frases"}],"food":[{"name":"emoji+nombre del plato","desc":"descripción y dónde probarlo, 2 frases"}],"transport":"cómo llegar y moverse (2 frases)"}
 Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de comida.`)
-        .then(t=>{try{
-          const textLimpio = t.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
-          const p=JSON.parse(textLimpio);
-          const u={...d,...p};
-          sD(u);
-          onUpdate({...city,...u});
-        }catch(e){console.error(e);}sL(false);})
-        .catch(()=>sL(false));
-      }, delay);
-
-      return () => clearTimeout(timer);
-    }
-  }, [city.id]); 
+    .then(t=>{
+      try{
+        const p=JSON.parse(t);
+        const u={...d,...p};
+        sD(u);
+        setCityCache(city.name, p);   // guardar en caché para no volver a pedir
+        onUpdate({...city,...u});
+      }catch(e){sAiErr("La IA devolvió un formato inesperado. Inténtalo de nuevo.");}
+      sL(false);
+    })
+    .catch(e=>{sAiErr(e.message||"Error al conectar con la IA.");sL(false);});
+  };
 
   const upd=(k,v)=>{const nd={...d,[k]:v};sD(nd);onUpdate({...city,...nd});};
   const col=city.color||"#B45309";
@@ -992,7 +1018,39 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
         {TABS.map(([k,l])=><button key={k} style={{flex:1,padding:"10px 4px",background:"none",border:"none",borderBottom:tab===k?`2.5px solid ${col}`:"2.5px solid transparent",fontSize:11,cursor:"pointer",color:tab===k?col:T.inkMuted,fontWeight:tab===k?700:500,fontFamily:"inherit",transition:"color .15s"}} onClick={()=>sT(k)}>{l}</button>)}
       </div>
       <div style={{overflowY:"auto",padding:"16px 16px 36px",flex:1,background:T.sheet}}>
-        {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"36px 0",color:T.inkMuted}}><Spin c={col}/><div style={{fontSize:13}}>✦ Generando con IA…</div></div>}
+        {/* Spinner mientras carga */}
+        {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"36px 0",color:T.inkMuted}}><Spin c={col}/><div style={{fontSize:13,textAlign:"center"}}>✦ Generando con IA…<br/><span style={{fontSize:11,color:T.inkLight}}>Puede tardar unos segundos</span></div></div>}
+
+        {/* Error de IA */}
+        {!loading&&aiErr&&<div style={{background:`${T.red}12`,border:`1px solid ${T.red}30`,borderRadius:10,padding:"11px 13px",marginBottom:12,fontSize:12,color:T.red,lineHeight:1.6}}>
+          ⚠️ {aiErr}
+          <button onClick={generateAI} style={{display:"block",marginTop:6,background:"none",border:"none",color:T.gold,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:12,padding:0}}>↺ Reintentar</button>
+        </div>}
+
+        {/* Botón "Generar con IA" — solo si no hay datos todavía */}
+        {!loading&&!hasData&&tab==="info"&&(
+          <div style={{textAlign:"center",padding:"20px 0 16px"}}>
+            <div style={{fontSize:36,marginBottom:8}}>{city.emoji||"📍"}</div>
+            <div style={{fontSize:13,color:T.inkMuted,marginBottom:16,lineHeight:1.65}}>
+              Pulsa el botón para que la IA genere información turística, atracciones y gastronomía de <strong style={{color:T.ink}}>{city.name}</strong>.
+            </div>
+            <button onClick={generateAI}
+              style={{background:`linear-gradient(135deg,${col},${col}cc)`,border:"none",borderRadius:14,padding:"13px 28px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 20px ${col}40`,display:"inline-flex",alignItems:"center",gap:8}}>
+              ✦ Generar info con IA
+            </button>
+            <div style={{fontSize:10,color:T.inkLight,marginTop:10}}>1 petición · se guarda en caché</div>
+          </div>
+        )}
+
+        {/* Botón "Regenerar" discreto cuando ya hay datos */}
+        {!loading&&hasData&&tab==="info"&&(
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+            <button onClick={generateAI} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:20,padding:"4px 12px",fontSize:10,color:T.inkMuted,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>
+              ↺ Regenerar
+            </button>
+          </div>
+        )}
+
         {!loading&&tab==="info"&&<>
           <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:8,fontWeight:700}}>DESCRIPCIÓN</div>
           <textarea value={d.desc} onChange={e=>upd("desc",e.target.value)} placeholder="Describe este destino…"
@@ -1015,7 +1073,11 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
         </>}
         {!loading&&tab==="food"&&<>
           <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:8,fontWeight:700}}>GASTRONOMÍA LOCAL</div>
-          {(d.food||[]).length===0&&<div style={{color:T.inkMuted,fontSize:13,padding:"20px 0",textAlign:"center"}}>Cierra y vuelve a abrir para regenerar.</div>}
+          {(d.food||[]).length===0&&!hasData&&(
+            <div style={{textAlign:"center",padding:"16px 0",color:T.inkMuted}}>
+              <div style={{fontSize:13,marginBottom:10}}>Vuelve a la pestaña Info y pulsa "Generar con IA".</div>
+            </div>
+          )}
           {(d.food||[]).map((f,i)=><Expand key={i} label={f.name} desc={f.desc} col={col} T={T}/>)}
         </>}
         {!loading&&tab==="notas"&&<textarea value={d.notes||""} onChange={e=>upd("notes",e.target.value)} placeholder="Ideas, horarios, confirmaciones…"
