@@ -15,7 +15,10 @@ function setCityCache(cityName,data){
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI HELPER – cola con pausa de 4 s entre llamadas (límite Gemini: 15 RPM)
+// + cooldown global de 65 s cuando se recibe un 429
 // ─────────────────────────────────────────────────────────────────────────────
+let _aiCooldownUntil = 0; // timestamp hasta el que no se puede llamar a la IA
+
 const _aiQueue = { running: 0, max: 1, pending: [], lastFinish: 0 };
 function _runQueue() {
   if (_aiQueue.running >= _aiQueue.max || _aiQueue.pending.length === 0) return;
@@ -32,46 +35,43 @@ function _enqueue(fn) {
   return new Promise(resolve => { _aiQueue.pending.push({ resolve, fn }); _runQueue(); });
 }
 
-async function callAI(prompt, image = null, retries = 2) {
+async function callAI(prompt, image = null) {
+  // Rechazar inmediatamente si estamos en periodo de cooldown por 429
+  const now = Date.now();
+  if (now < _aiCooldownUntil) {
+    const secs = Math.ceil((_aiCooldownUntil - now) / 1000);
+    throw new Error(`COOLDOWN:${secs}`);
+  }
   return _enqueue(async () => {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-      try {
-        const res = await fetch("/api/ai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({ prompt, image }),
-        });
-        clearTimeout(timeoutId);
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          // No reintentar errores 4xx (incluyendo 429)
-          if (res.status >= 400 && res.status < 500) {
-            throw new Error(err.error || `HTTP ${res.status}`);
-          }
-          if (attempt === retries) throw new Error(err.error || `HTTP ${res.status}`);
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-          continue;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ prompt, image }),
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (res.status === 429) {
+          _aiCooldownUntil = Date.now() + 65000; // bloquear 65 s tras un 429
+          throw new Error("COOLDOWN:65");
         }
-        const data = await res.json();
-        let text = data.text || "";
-        return text
-          .replace(/^```json\s*/i, "")
-          .replace(/^```\s*/i, "")
-          .replace(/```\s*$/i, "")
-          .trim();
-      } catch (e) {
-        clearTimeout(timeoutId);
-        if (e.name === "AbortError") {
-          if (attempt === retries) throw new Error("La IA tardó demasiado. Inténtalo de nuevo.");
-          await new Promise(r => setTimeout(r, 1000));
-          continue;
-        }
-        if (attempt === retries) throw e;
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        throw new Error(err.error || `HTTP ${res.status}`);
       }
+      const data = await res.json();
+      let text = data.text || "";
+      return text
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/```\s*$/i, "")
+        .trim();
+    } catch (e) {
+      clearTimeout(timeoutId);
+      if (e.name === "AbortError") throw new Error("La IA tardó demasiado. Inténtalo de nuevo.");
+      throw e;
     }
   });
 }
@@ -254,6 +254,8 @@ const TEMPLATES = [
 ];
 
 const CSS = `@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes globeSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 *{box-sizing:border-box}::-webkit-scrollbar{width:0}`;
@@ -954,8 +956,8 @@ function CitySheet({city,onClose,onBack,onUpdate,T}){
   const[tab,sT]=useState("info");
   const[loading,sL]=useState(false);
   const[aiErr,sAiErr]=useState("");
+  const[countdown,sCd]=useState(0); // segundos restantes de cooldown
   const[d,sD]=useState(()=>{
-    // Inicializar desde caché si existe, para no hacer llamada a la IA
     const cached = getCityCache(city.name);
     return {
       desc:       city.desc        || cached?.desc        || "",
@@ -967,11 +969,23 @@ function CitySheet({city,onClose,onBack,onUpdate,T}){
     };
   });
 
-  // Datos ya disponibles (guardados o en caché)
+  // Cuenta atrás visual cuando hay cooldown activo
+  useEffect(()=>{
+    if(countdown<=0)return;
+    const id=setInterval(()=>{
+      const rem=Math.ceil((_aiCooldownUntil-Date.now())/1000);
+      if(rem<=0){sCd(0);clearInterval(id);}else sCd(rem);
+    },1000);
+    return()=>clearInterval(id);
+  },[countdown]);
+
   const hasData = !!(d.desc || d.attractions?.length);
 
   const generateAI = () => {
-    sL(true); sAiErr("");
+    // Comprobar cooldown antes de lanzar
+    const rem = Math.ceil((_aiCooldownUntil - Date.now()) / 1000);
+    if(rem > 0){ sCd(rem); return; }
+    sL(true); sAiErr(""); sCd(0);
     callAI(`Información turística de ${city.name}${city.country?", "+city.country:""}.
 JSON exacto (sin ningún texto adicional):
 {"desc":"2-3 frases del destino","attractions":[{"name":"emoji+nombre","price":"precio €","desc":"2 frases"}],"food":[{"name":"emoji+nombre del plato","desc":"descripción y dónde probarlo, 2 frases"}],"transport":"cómo llegar y moverse (2 frases)"}
@@ -981,12 +995,20 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
         const p=JSON.parse(t);
         const u={...d,...p};
         sD(u);
-        setCityCache(city.name, p);   // guardar en caché para no volver a pedir
+        setCityCache(city.name, p);
         onUpdate({...city,...u});
       }catch(e){sAiErr("La IA devolvió un formato inesperado. Inténtalo de nuevo.");}
       sL(false);
     })
-    .catch(e=>{sAiErr(e.message||"Error al conectar con la IA.");sL(false);});
+    .catch(e=>{
+      if(e.message?.startsWith("COOLDOWN:")){
+        const secs=parseInt(e.message.split(":")[1])||65;
+        sCd(secs);
+      } else {
+        sAiErr(e.message||"Error al conectar con la IA.");
+      }
+      sL(false);
+    });
   };
 
   const upd=(k,v)=>{const nd={...d,[k]:v};sD(nd);onUpdate({...city,...nd});};
@@ -1018,35 +1040,53 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
         {TABS.map(([k,l])=><button key={k} style={{flex:1,padding:"10px 4px",background:"none",border:"none",borderBottom:tab===k?`2.5px solid ${col}`:"2.5px solid transparent",fontSize:11,cursor:"pointer",color:tab===k?col:T.inkMuted,fontWeight:tab===k?700:500,fontFamily:"inherit",transition:"color .15s"}} onClick={()=>sT(k)}>{l}</button>)}
       </div>
       <div style={{overflowY:"auto",padding:"16px 16px 36px",flex:1,background:T.sheet}}>
-        {/* Spinner mientras carga */}
-        {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"36px 0",color:T.inkMuted}}><Spin c={col}/><div style={{fontSize:13,textAlign:"center"}}>✦ Generando con IA…<br/><span style={{fontSize:11,color:T.inkLight}}>Puede tardar unos segundos</span></div></div>}
 
-        {/* Error de IA */}
-        {!loading&&aiErr&&<div style={{background:`${T.red}12`,border:`1px solid ${T.red}30`,borderRadius:10,padding:"11px 13px",marginBottom:12,fontSize:12,color:T.red,lineHeight:1.6}}>
-          ⚠️ {aiErr}
-          <button onClick={generateAI} style={{display:"block",marginTop:6,background:"none",border:"none",color:T.gold,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:12,padding:0}}>↺ Reintentar</button>
-        </div>}
+        {/* Spinner cargando */}
+        {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"36px 0",color:T.inkMuted}}><Spin c={col}/><div style={{fontSize:13,textAlign:"center"}}>✦ Generando con IA…<br/><span style={{fontSize:11,color:T.inkLight}}>Espera unos segundos</span></div></div>}
 
-        {/* Botón "Generar con IA" — solo si no hay datos todavía */}
-        {!loading&&!hasData&&tab==="info"&&(
-          <div style={{textAlign:"center",padding:"20px 0 16px"}}>
-            <div style={{fontSize:36,marginBottom:8}}>{city.emoji||"📍"}</div>
-            <div style={{fontSize:13,color:T.inkMuted,marginBottom:16,lineHeight:1.65}}>
-              Pulsa el botón para que la IA genere información turística, atracciones y gastronomía de <strong style={{color:T.ink}}>{city.name}</strong>.
+        {/* Cooldown — cuenta atrás */}
+        {!loading&&countdown>0&&(
+          <div style={{background:"#78350F18",border:"1px solid #78350F40",borderRadius:12,padding:"16px",marginBottom:14,textAlign:"center"}}>
+            <div style={{fontSize:28,marginBottom:6}}>⏳</div>
+            <div style={{fontSize:14,fontWeight:700,color:"#92400E",marginBottom:4}}>Límite de Gemini alcanzado</div>
+            <div style={{fontSize:12,color:"#78716C",lineHeight:1.6,marginBottom:12}}>
+              La API gratuita de Gemini permite 15 peticiones por minuto.<br/>
+              Por favor espera antes de volver a intentarlo.
             </div>
-            <button onClick={generateAI}
-              style={{background:`linear-gradient(135deg,${col},${col}cc)`,border:"none",borderRadius:14,padding:"13px 28px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 20px ${col}40`,display:"inline-flex",alignItems:"center",gap:8}}>
-              ✦ Generar info con IA
-            </button>
-            <div style={{fontSize:10,color:T.inkLight,marginTop:10}}>1 petición · se guarda en caché</div>
+            <div style={{fontSize:36,fontWeight:900,fontFamily:"'Playfair Display',Georgia,serif",color:"#B45309"}}>{countdown}s</div>
+            <div style={{fontSize:10,color:"#A8A29E",marginTop:4}}>El botón se activará automáticamente</div>
           </div>
         )}
 
-        {/* Botón "Regenerar" discreto cuando ya hay datos */}
+        {/* Error genérico */}
+        {!loading&&countdown===0&&aiErr&&(
+          <div style={{background:`${T.red}12`,border:`1px solid ${T.red}30`,borderRadius:10,padding:"11px 13px",marginBottom:12,fontSize:12,color:T.red,lineHeight:1.6}}>
+            ⚠️ {aiErr}
+            <button onClick={generateAI} style={{display:"block",marginTop:6,background:"none",border:"none",color:T.gold,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:12,padding:0}}>↺ Reintentar</button>
+          </div>
+        )}
+
+        {/* Botón principal — desactivado durante cooldown o carga */}
+        {!loading&&tab==="info"&&!hasData&&(
+          <div style={{textAlign:"center",padding:"20px 0 16px"}}>
+            <div style={{fontSize:36,marginBottom:8}}>{city.emoji||"📍"}</div>
+            <div style={{fontSize:13,color:T.inkMuted,marginBottom:16,lineHeight:1.65}}>
+              Pulsa para generar información turística de <strong style={{color:T.ink}}>{city.name}</strong> con IA.
+            </div>
+            <button onClick={generateAI} disabled={countdown>0}
+              style={{background:countdown>0?"#ccc":`linear-gradient(135deg,${col},${col}cc)`,border:"none",borderRadius:14,padding:"13px 28px",color:"white",fontWeight:700,fontSize:14,cursor:countdown>0?"not-allowed":"pointer",fontFamily:"inherit",boxShadow:countdown>0?"none":`0 6px 20px ${col}40`,display:"inline-flex",alignItems:"center",gap:8,transition:"all .2s"}}>
+              {countdown>0?`⏳ Espera ${countdown}s…`:"✦ Generar info con IA"}
+            </button>
+            <div style={{fontSize:10,color:T.inkLight,marginTop:10}}>1 petición · resultado guardado en caché</div>
+          </div>
+        )}
+
+        {/* Botón regenerar (discreto) cuando ya hay datos */}
         {!loading&&hasData&&tab==="info"&&(
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
-            <button onClick={generateAI} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:20,padding:"4px 12px",fontSize:10,color:T.inkMuted,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>
-              ↺ Regenerar
+            <button onClick={generateAI} disabled={countdown>0}
+              style={{background:"none",border:`1px solid ${T.border}`,borderRadius:20,padding:"4px 12px",fontSize:10,color:countdown>0?T.inkLight:T.inkMuted,cursor:countdown>0?"not-allowed":"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>
+              {countdown>0?`⏳ ${countdown}s`:"↺ Regenerar"}
             </button>
           </div>
         )}
@@ -1073,10 +1113,8 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
         </>}
         {!loading&&tab==="food"&&<>
           <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,marginBottom:8,fontWeight:700}}>GASTRONOMÍA LOCAL</div>
-          {(d.food||[]).length===0&&!hasData&&(
-            <div style={{textAlign:"center",padding:"16px 0",color:T.inkMuted}}>
-              <div style={{fontSize:13,marginBottom:10}}>Vuelve a la pestaña Info y pulsa "Generar con IA".</div>
-            </div>
+          {(d.food||[]).length===0&&(
+            <div style={{textAlign:"center",padding:"16px 0",color:T.inkMuted,fontSize:13}}>Ve a la pestaña Info y pulsa "Generar info con IA".</div>
           )}
           {(d.food||[]).map((f,i)=><Expand key={i} label={f.name} desc={f.desc} col={col} T={T}/>)}
         </>}
@@ -1086,6 +1124,7 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
     </Sheet>
   );
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HOTELS SHEET
@@ -1541,6 +1580,67 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CUSTOM CITY ADDER — añade destinos no sugeridos por la IA
+// ─────────────────────────────────────────────────────────────────────────────
+function CustomCityAdder({selected,onAdd,onRemove,T}){
+  const[name,sName]=useState("");
+  const[emoji,sEmoji]=useState("📍");
+  const[open,sOpen]=useState(false);
+  const EMOJIS_Q=["📍","🏙","🏖","🏔","🌆","🗼","🏛","🗿","🌊","🏝","🕌","⛩","🎭","🌺","🎪","🦁","🐉","🌴"];
+  const custom=selected.filter(c=>c._custom);
+
+  const add=()=>{
+    const n=name.trim();
+    if(!n)return;
+    if(selected.find(x=>x.name.toLowerCase()===n.toLowerCase()))return;
+    onAdd({name:n,emoji,desc:"Ciudad añadida manualmente.",_custom:true});
+    sName("");sEmoji("📍");sOpen(false);
+  };
+
+  return(
+    <div style={{marginTop:16}}>
+      <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:8}}>+ AÑADIR DESTINO MANUALMENTE</div>
+      {custom.length>0&&custom.map((c,i)=>(
+        <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:T.bgMuted,borderRadius:10,padding:"8px 12px",marginBottom:6}}>
+          <span style={{fontSize:16}}>{c.emoji}</span>
+          <span style={{flex:1,fontSize:13,fontWeight:600,color:T.ink}}>{c.name}</span>
+          <span style={{fontSize:10,color:T.inkLight,marginRight:4}}>personalizado</span>
+          <button onClick={()=>onRemove(c)} style={{background:`${T.red}15`,border:`1px solid ${T.red}30`,borderRadius:6,width:24,height:24,color:T.red,cursor:"pointer",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+        </div>
+      ))}
+      {!open?(
+        <button onClick={()=>sOpen(true)}
+          style={{width:"100%",background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:12,padding:"11px",color:T.inkMuted,cursor:"pointer",fontFamily:"inherit",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+          <span style={{fontSize:16}}>+</span> Añadir otra ciudad
+        </button>
+      ):(
+        <div style={{background:T.bgMuted,borderRadius:12,padding:14,border:`1px solid ${T.border}`}}>
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <input value={name} onChange={e=>sName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()}
+              placeholder="Nombre de la ciudad" autoFocus
+              style={{flex:1,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:8,padding:"9px 11px",fontSize:13,color:T.ink,fontFamily:"inherit",outline:"none"}}/>
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
+            {EMOJIS_Q.map(e=>(
+              <button key={e} onClick={()=>sEmoji(e)}
+                style={{fontSize:18,background:emoji===e?`${T.gold}20`:"transparent",border:`1px solid ${emoji===e?T.gold:T.border}`,borderRadius:8,width:36,height:36,cursor:"pointer"}}>
+                {e}
+              </button>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>sOpen(false)} style={{flex:1,background:T.bgCard,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px",color:T.inkMuted,cursor:"pointer",fontFamily:"inherit",fontSize:13}}>Cancelar</button>
+            <button onClick={add} disabled={!name.trim()} style={{flex:2,background:name.trim()?T.gold:"#ccc",border:"none",borderRadius:10,padding:"10px",color:"white",fontWeight:700,cursor:name.trim()?"pointer":"default",fontFamily:"inherit",fontSize:13}}>
+              {emoji} Añadir {name||"ciudad"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SETUP WIZARD
 // ─────────────────────────────────────────────────────────────────────────────
 function SetupWizard({T,onCancel,onDone}){
@@ -1572,6 +1672,9 @@ function SetupWizard({T,onCancel,onDone}){
 
   const getSugg=useCallback(async()=>{
     if(!dest.trim() && !img) return;
+    // Comprobar cooldown antes de lanzar
+    const rem = Math.ceil((_aiCooldownUntil - Date.now()) / 1000);
+    if(rem > 0){ sError(`COOLDOWN:${rem}`); return; }
     sLoading(true);sError("");
     try{
       const promptTexto = `Destino solicitado: ${dest || "Especificado en la imagen"}. Mes: ${MONTHS[month]} ${year}.
@@ -1582,13 +1685,17 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
       const parsed=JSON.parse(t);
       sAI(parsed.sort((a,b)=>(a.order||0)-(b.order||0)));
     }catch(e){
-      console.error("Error crítico leyendo JSON de IA:", e);
-      sError("Error de IA. Inténtalo.");
+      if(e.message?.startsWith("COOLDOWN:")){
+        sError(e.message);
+      } else {
+        console.error("Error IA:", e);
+        sError("Error de IA. Inténtalo de nuevo.");
+      }
     }
     sLoading(false);
   },[dest,month,year,img]);
 
-  useEffect(()=>{if(step===2)getSugg();},[step, getSugg]);
+  // ← SIN useEffect que auto-dispare getSugg al entrar al paso 2
 
   const toggleCity=c=>sSel(s=>s.find(x=>x.name===c.name)?s.filter(x=>x.name!==c.name):[...s,{...c,id: Date.now(), color:PAL[s.length%PAL.length],country:dest}]);
 
@@ -1657,35 +1764,91 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
 
   if(step===1)return <DatePicker title={pendingTpl?pendingTpl.label:dest} sub={pendingTpl?"ELIGE AÑO Y MES":"ELIGE FECHA"} T={T} onBack={()=>sStep(0)} onNext={afterDate}/>;
 
-  if(step===2)return(
+  if(step===2){
+    const isCooldown = error?.startsWith("COOLDOWN:");
+    const cdSecs = isCooldown ? parseInt(error.split(":")[1])||60 : 0;
+    return(
     <div style={{position:"fixed",inset:0,background:T.bg,display:"flex",flexDirection:"column",zIndex:500}}>
       <div style={{background:T.bgNav,padding:"14px 18px 10px",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
         <button onClick={()=>sStep(1)} style={{background:"rgba(255,255,255,.12)",border:"none",borderRadius:"50%",width:36,height:36,color:"white",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>←</button>
-        <div style={{flex:1}}><div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:16,fontWeight:900,color:"white"}}>{dest || "Captura de pantalla"} · {MONTHS[month]} {year}</div><div style={{fontSize:9,color:T.gold,letterSpacing:2,fontWeight:700}}>✦ RUTA OPTIMIZADA GEOGRÁFICAMENTE</div></div>
-        <div style={{fontSize:12,color:T.gold,fontWeight:700}}>{selected.length}</div>
+        <div style={{flex:1}}><div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:16,fontWeight:900,color:"white"}}>{dest||"Captura de pantalla"} · {MONTHS[month]} {year}</div><div style={{fontSize:9,color:T.gold,letterSpacing:2,fontWeight:700}}>✦ ELIGE TUS DESTINOS</div></div>
+        <div style={{fontSize:12,color:T.gold,fontWeight:700}}>{selected.length} sel.</div>
       </div>
       <div style={{overflowY:"auto",flex:1,padding:"12px 16px 16px",background:T.bg}}>
-        {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,padding:"40px 0",color:T.inkMuted}}><Spin c={T.gold}/><div style={{fontSize:13}}>✦ Optimizando ruta con IA…</div></div>}
-        {!loading&&error&&<div style={{color:T.red,fontSize:12,padding:"12px",background:`${T.red}15`,borderRadius:8,marginBottom:12,display:"flex",alignItems:"center",gap:8}}>{error}<button onClick={getSugg} style={{color:T.gold,background:"none",border:"none",cursor:"pointer",fontWeight:700,fontSize:12,marginLeft:"auto"}}>Reintentar</button></div>}
-        {!loading&&aiCities.map((c,i)=>{const isSel=selected.find(x=>x.name===c.name);const idx=selected.findIndex(x=>x.name===c.name);const col=isSel?PAL[idx%PAL.length]:null;return(
-          <div key={i} onClick={()=>toggleCity(c)} style={{background:isSel?`${col}12`:T.bgCard,borderRadius:14,padding:14,marginBottom:8,cursor:"pointer",border:`1.5px solid ${isSel?col:T.border}`,transition:"all .15s",boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{width:20,height:20,borderRadius:"50%",background:T.bgMuted,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:T.inkMuted,flexShrink:0}}>{i+1}</div>
-              <span style={{fontSize:20}}>{c.emoji}</span>
-              <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:T.ink}}>{c.name}</div><div style={{fontSize:11,color:T.inkMuted,marginTop:1}}>{c.days} días · {getWeather(dest,month)} {MONTHS[month]}</div></div>
-              <div style={{width:26,height:26,borderRadius:"50%",border:`2px solid ${isSel?col:T.border}`,background:isSel?col:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:12,fontWeight:700,flexShrink:0}}>{isSel?idx+1:""}</div>
+
+        {/* Botón principal buscar con IA */}
+        {!loading&&aiCities.length===0&&!isCooldown&&(
+          <div style={{textAlign:"center",padding:"28px 0 20px"}}>
+            <div style={{fontSize:40,marginBottom:10}}>🗺</div>
+            <div style={{fontSize:13,color:T.inkMuted,lineHeight:1.7,marginBottom:20}}>
+              Pulsa para que la IA sugiera la ruta óptima por <strong style={{color:T.ink}}>{dest||"tu destino"}</strong>,<br/>ordenada geográficamente.
             </div>
-            <div style={{fontSize:12,color:T.inkMuted,lineHeight:1.55,marginTop:6}}>{c.desc}</div>
+            <button onClick={getSugg}
+              style={{background:`linear-gradient(135deg,${T.gold},${T.gold}cc)`,border:"none",borderRadius:14,padding:"13px 28px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 20px ${T.gold}40`,display:"inline-flex",alignItems:"center",gap:8}}>
+              ✦ Buscar ciudades con IA
+            </button>
+            <div style={{fontSize:10,color:T.inkLight,marginTop:10}}>1 petición a Gemini</div>
           </div>
-        );})}
+        )}
+
+        {/* Spinner */}
+        {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,padding:"40px 0",color:T.inkMuted}}><Spin c={T.gold}/><div style={{fontSize:13}}>✦ Optimizando ruta con IA…</div></div>}
+
+        {/* Cooldown */}
+        {!loading&&isCooldown&&(
+          <div style={{background:"#78350F18",border:"1px solid #78350F40",borderRadius:12,padding:"20px",margin:"16px 0",textAlign:"center"}}>
+            <div style={{fontSize:28,marginBottom:6}}>⏳</div>
+            <div style={{fontSize:14,fontWeight:700,color:"#92400E",marginBottom:6}}>Límite de Gemini alcanzado</div>
+            <div style={{fontSize:12,color:T.inkMuted,lineHeight:1.65,marginBottom:12}}>Gemini permite 15 peticiones/minuto.<br/>Espera y vuelve a pulsar el botón.</div>
+            <div style={{fontSize:32,fontWeight:900,fontFamily:"'Playfair Display',Georgia,serif",color:T.gold}}>{cdSecs}s</div>
+            <button onClick={getSugg} disabled={cdSecs>0}
+              style={{marginTop:12,background:cdSecs>0?"#ccc":T.gold,border:"none",borderRadius:12,padding:"10px 22px",color:"white",fontWeight:700,fontSize:13,cursor:cdSecs>0?"not-allowed":"pointer",fontFamily:"inherit"}}>
+              {cdSecs>0?`Espera ${cdSecs}s`:"↺ Intentar ahora"}
+            </button>
+          </div>
+        )}
+
+        {/* Error normal (no cooldown) */}
+        {!loading&&error&&!isCooldown&&(
+          <div style={{color:T.red,fontSize:12,padding:"12px",background:`${T.red}15`,borderRadius:8,marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+            {error}
+            <button onClick={getSugg} style={{color:T.gold,background:"none",border:"none",cursor:"pointer",fontWeight:700,fontSize:12,marginLeft:"auto"}}>↺ Reintentar</button>
+          </div>
+        )}
+
+        {/* Lista de ciudades sugeridas por IA */}
+        {!loading&&aiCities.length>0&&(
+          <>
+            <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <span>✦ SUGERENCIAS DE LA IA</span>
+              <button onClick={getSugg} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:20,padding:"2px 10px",fontSize:10,color:T.inkMuted,cursor:"pointer",fontFamily:"inherit"}}>↺ Regenerar</button>
+            </div>
+            {aiCities.map((c,i)=>{const isSel=selected.find(x=>x.name===c.name);const idx=selected.findIndex(x=>x.name===c.name);const col=isSel?PAL[idx%PAL.length]:null;return(
+              <div key={i} onClick={()=>toggleCity(c)} style={{background:isSel?`${col}12`:T.bgCard,borderRadius:14,padding:14,marginBottom:8,cursor:"pointer",border:`1.5px solid ${isSel?col:T.border}`,transition:"all .15s"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:20,height:20,borderRadius:"50%",background:T.bgMuted,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:T.inkMuted,flexShrink:0}}>{i+1}</div>
+                  <span style={{fontSize:20}}>{c.emoji}</span>
+                  <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:T.ink}}>{c.name}</div><div style={{fontSize:11,color:T.inkMuted,marginTop:1}}>{c.days} días · {getWeather(dest,month)} {MONTHS[month]}</div></div>
+                  <div style={{width:26,height:26,borderRadius:"50%",border:`2px solid ${isSel?col:T.border}`,background:isSel?col:"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:12,fontWeight:700,flexShrink:0}}>{isSel?idx+1:""}</div>
+                </div>
+                <div style={{fontSize:12,color:T.inkMuted,lineHeight:1.55,marginTop:6}}>{c.desc}</div>
+              </div>
+            );})}
+          </>
+        )}
+
+        {/* Añadir ciudad personalizada (siempre visible) */}
+        <CustomCityAdder selected={selected} onAdd={c=>sSel(s=>[...s,{...c,id:Date.now(),color:PAL[s.length%PAL.length],country:dest,days:3,order:99}])} onRemove={c=>sSel(s=>s.filter(x=>x.name!==c.name))} T={T}/>
+
       </div>
       <div style={{padding:"10px 16px 22px",flexShrink:0,borderTop:`1px solid ${T.border}`,background:T.bg}}>
-        <button onClick={buildDays} disabled={selected.length===0} style={{width:"100%",background:selected.length?T.gold:"#ccc",border:"none",borderRadius:14,padding:"14px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
-          Asignar días → ({selected.length} ciudades)
+        <button onClick={buildDays} disabled={selected.length===0}
+          style={{width:"100%",background:selected.length?T.gold:"#ccc",border:"none",borderRadius:14,padding:"14px",color:"white",fontWeight:700,fontSize:14,cursor:selected.length?"pointer":"default",fontFamily:"inherit"}}>
+          Asignar días → ({selected.length} {selected.length===1?"ciudad":"ciudades"})
         </button>
       </div>
     </div>
-  );
+  );}
 
   if(step===3)return(
     <DayPickerCal year={year} month={month} cities={cities} asgn={asgn} sAsgn={sAsgn}
@@ -1694,6 +1857,108 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
       allowAddCity dest={dest||pendingTpl?.dest||""}/>
   );
   return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WEATHER SHEET — previsión del tiempo con IA para las fechas del viaje
+// ─────────────────────────────────────────────────────────────────────────────
+function WeatherSheet({trip,onClose,T}){
+  const[loading,sL]=useState(false);
+  const[forecast,sF]=useState(null);
+  const[err,sErr]=useState("");
+  const[countdown,sCd]=useState(0);
+
+  useEffect(()=>{
+    if(countdown<=0)return;
+    const id=setInterval(()=>{const r=Math.ceil((_aiCooldownUntil-Date.now())/1000);if(r<=0){sCd(0);clearInterval(id);}else sCd(r);},1000);
+    return()=>clearInterval(id);
+  },[countdown]);
+
+  const generate=()=>{
+    const rem=Math.ceil((_aiCooldownUntil-Date.now())/1000);
+    if(rem>0){sCd(rem);return;}
+    sL(true);sErr("");
+    const cities=trip.cities.map(c=>`${c.name}(${c.from}→${c.to})`).join(", ");
+    callAI(`Haz una predicción meteorológica para un viaje a ${trip.dest} en ${MONTHS[trip.month]} ${trip.year}.
+Ciudades y fechas: ${cities}.
+Responde SOLO con este JSON:
+{"summary":"resumen general del tiempo en 2 frases","cities":[{"name":"ciudad","emoji":"emoji clima","temp":"temperatura media en °C","desc":"descripción 1-2 frases","tips":"consejo práctico"}]}`)
+    .then(t=>{
+      try{sF(JSON.parse(t));}catch{sErr("La IA devolvió un formato inesperado.");}
+      sL(false);
+    })
+    .catch(e=>{
+      if(e.message?.startsWith("COOLDOWN:")){sCd(parseInt(e.message.split(":")[1])||65);}
+      else sErr(e.message||"Error de IA.");
+      sL(false);
+    });
+  };
+
+  return(
+    <Sheet onClose={onClose} T={T} zi={200}>
+      <Handle T={T}/>
+      <SheetHead title="Previsión del Tiempo" sub={`${trip.dest} · ${MONTHS[trip.month]} ${trip.year}`} icon="🌤" T={T} onClose={onClose}/>
+      <div style={{overflowY:"auto",flex:1,padding:"16px 16px 40px",background:T.sheet}}>
+
+        {!forecast&&!loading&&countdown===0&&(
+          <div style={{textAlign:"center",padding:"24px 0 16px"}}>
+            <div style={{fontSize:48,marginBottom:8}}>🌍</div>
+            <div style={{fontSize:13,color:T.inkMuted,lineHeight:1.7,marginBottom:20}}>
+              La IA analizará las condiciones climáticas típicas para<br/>
+              <strong style={{color:T.ink}}>{trip.dest}</strong> en <strong style={{color:T.ink}}>{MONTHS[trip.month]}</strong> y dará consejos prácticos.
+            </div>
+            <button onClick={generate}
+              style={{background:`linear-gradient(135deg,${T.gold},${T.gold}cc)`,border:"none",borderRadius:14,padding:"13px 28px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 20px ${T.gold}40`,display:"inline-flex",alignItems:"center",gap:8}}>
+              🌤 Generar previsión con IA
+            </button>
+            <div style={{fontSize:10,color:T.inkLight,marginTop:10}}>1 petición a Gemini · orientativa</div>
+          </div>
+        )}
+
+        {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,padding:"40px 0"}}><Spin c={T.gold}/><div style={{fontSize:13,color:T.inkMuted}}>Consultando clima con IA…</div></div>}
+
+        {countdown>0&&(
+          <div style={{background:"#78350F18",border:"1px solid #78350F40",borderRadius:12,padding:"20px",textAlign:"center"}}>
+            <div style={{fontSize:28,marginBottom:6}}>⏳</div>
+            <div style={{fontSize:14,fontWeight:700,color:"#92400E",marginBottom:6}}>Límite de Gemini</div>
+            <div style={{fontSize:32,fontWeight:900,color:T.gold,fontFamily:"'Playfair Display',Georgia,serif"}}>{countdown}s</div>
+            <button onClick={generate} disabled={countdown>0}
+              style={{marginTop:12,background:countdown>0?"#ccc":T.gold,border:"none",borderRadius:12,padding:"10px 22px",color:"white",fontWeight:700,fontSize:13,cursor:countdown>0?"not-allowed":"pointer",fontFamily:"inherit"}}>
+              {countdown>0?`Espera ${countdown}s`:"↺ Intentar"}
+            </button>
+          </div>
+        )}
+
+        {err&&<div style={{background:`${T.red}12`,border:`1px solid ${T.red}30`,borderRadius:10,padding:"12px",color:T.red,fontSize:12,marginBottom:12}}>⚠️ {err}<button onClick={generate} style={{display:"block",marginTop:6,background:"none",border:"none",color:T.gold,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:12,padding:0}}>↺ Reintentar</button></div>}
+
+        {forecast&&(
+          <>
+            <div style={{background:`${T.gold}12`,border:`1px solid ${T.gold}30`,borderRadius:12,padding:"14px 16px",marginBottom:16}}>
+              <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:6}}>RESUMEN GENERAL</div>
+              <div style={{fontSize:13,color:T.ink,lineHeight:1.7}}>{forecast.summary}</div>
+            </div>
+            {(forecast.cities||[]).map((c,i)=>(
+              <div key={i} style={{background:T.bgMuted,borderRadius:12,padding:"14px",marginBottom:10,border:`1px solid ${T.border}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                  <span style={{fontSize:28}}>{c.emoji}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{c.name}</div>
+                    <div style={{fontSize:12,color:T.gold,fontWeight:700}}>{c.temp}</div>
+                  </div>
+                </div>
+                <div style={{fontSize:12,color:T.inkMuted,lineHeight:1.65,marginBottom:6}}>{c.desc}</div>
+                <div style={{background:`${T.gold}10`,borderRadius:8,padding:"7px 10px",fontSize:11,color:T.gold,fontWeight:600}}>💡 {c.tips}</div>
+              </div>
+            ))}
+            <button onClick={generate}
+              style={{width:"100%",marginTop:4,background:"none",border:`1px solid ${T.border}`,borderRadius:12,padding:"11px",color:T.inkMuted,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>
+              ↺ Regenerar previsión
+            </button>
+          </>
+        )}
+      </div>
+    </Sheet>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1825,7 +2090,6 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
           <button onClick={onNewTrip} style={{background:T.gold,border:"none",borderRadius:20,height:30,padding:"0 12px",color:"white",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:3}}>
             <span style={{fontSize:14,lineHeight:1}}>+</span>Nuevo
           </button>
-          <button onClick={()=>setDark(d=>!d)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:"50%",width:30,height:30,color:"white",fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{dark?"☀️":"🌙"}</button>
         </div>
       </div>
 
@@ -1842,16 +2106,17 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
         </div>
       )}
 
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 14px 3px",flexShrink:0,background:T.bgNav}}>
-        <button onClick={()=>changeMonth(-1)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:"50%",width:28,height:28,color:"white",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
-        <div style={{textAlign:"center",display:"flex",alignItems:"center",gap:8}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"6px 14px 3px",flexShrink:0,background:T.bgNav}}>
+        <div style={{textAlign:"center",display:"flex",alignItems:"center",gap:10}}>
           <div>
             <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:17,fontWeight:900,color:"white",lineHeight:1}}>{MONTHS[calMonth]}</div>
             <div style={{fontSize:9,color:T.gold,letterSpacing:2,fontWeight:700}}>{calYear}</div>
           </div>
-          {weather&&<span title="Clima estimado del mes">{weather}</span>}
+          {weather&&activeTrip&&<button title="Previsión del tiempo con IA" onClick={()=>sSht("weather")}
+            style={{background:"rgba(255,255,255,.12)",border:"1px solid rgba(255,255,255,.2)",borderRadius:20,padding:"3px 10px",cursor:"pointer",fontSize:16,display:"flex",alignItems:"center",gap:4}}>
+            {weather}<span style={{fontSize:9,color:"rgba(255,255,255,.6)",fontWeight:700}}>CLIMA</span>
+          </button>}
         </div>
-        <button onClick={()=>changeMonth(1)} style={{background:"rgba(255,255,255,.09)",border:"none",borderRadius:"50%",width:28,height:28,color:"white",fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
       </div>
 
       {allCities.length>0&&(
@@ -1973,10 +2238,11 @@ function HomeScreen({trips,dark,setDark,onNewTrip,onUpdateTrip,onDeleteTrip,onAd
       {showShare&&activeTrip&&<ShareSheet trip={activeTrip} T={T} onClose={()=>sShowShare(false)} onImportTrip={t=>{onAddTrip&&onAddTrip({...t,id:Date.now()});sShowShare(false);}}/>}
       {showEdit&&activeTrip&&<EditDaysModal trip={activeTrip} onClose={()=>sShowEdit(false)} onUpdateTrip={onUpdateTrip} T={T}/>}
       {selCity&&activeTrip&&<CitySheet city={selCity} onClose={()=>sSC(null)} onBack={()=>sSC(null)} onUpdate={upd=>{const updatedCities=activeTrip.cities.map(c=>c.id===upd.id?upd:c);onUpdateTrip({...activeTrip,cities: updatedCities});sSC(upd);}} T={T}/>}
-      {sheet       ==="hotels"&&activeTrip&&<HotelsSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
-      {sheet==="budget"&&activeTrip&&<BudgetSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
+      {sheet==="hotels"   &&activeTrip&&<HotelsSheet   trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
+      {sheet==="budget"   &&activeTrip&&<BudgetSheet   trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
       {sheet==="traslados"&&activeTrip&&<TrasladosSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
-      {sheet==="notas"&&activeTrip&&<NotasSheet trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
+      {sheet==="notas"    &&activeTrip&&<NotasSheet    trip={activeTrip} onUpdateTrip={t=>onUpdateTrip(t)} onClose={()=>sSht(null)} T={T}/>}
+      {sheet==="weather"  &&activeTrip&&<WeatherSheet  trip={activeTrip} onClose={()=>sSht(null)} T={T}/>}
     </div>
   );
 }
@@ -2007,22 +2273,46 @@ function VoyagerApp(){
       <style>{CSS+`input,select,textarea{color-scheme:${dark?"dark":"light"}}`}</style>
       
       {screen==="landing" && (
-        <div style={{position:"fixed",inset:0,background:T.bgNav,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',system-ui,sans-serif"}}>
-          <div style={{position:"absolute",width:380,height:380,borderRadius:"50%",background:`radial-gradient(circle,${T.gold}14,transparent 65%)`,pointerEvents:"none"}}/>
-          <div style={{textAlign:"center",position:"relative",zIndex:1,padding:"0 40px"}}>
-            <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:"clamp(52px,16vw,88px)",fontWeight:900,color:"white",letterSpacing:-4,lineHeight:1,marginBottom:4}}>voyager</div>
-            <div style={{fontSize:10,color:T.gold,letterSpacing:5,fontWeight:700,marginBottom:48}}>✦ AI TRAVEL PLANNER</div>
+        <div style={{position:"fixed",inset:0,background:"#0F0D0B",overflow:"hidden",fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+          {/* Globo giratorio — posicionado abajo-izquierda, solo visible 1/3 */}
+          <div style={{position:"absolute",bottom:"-18%",left:"-28%",width:"88vw",height:"88vw",borderRadius:"50%",overflow:"hidden",animation:"globeSpin 28s linear infinite",flexShrink:0}}>
+            {/* Base esférica con gradiente */}
+            <div style={{position:"absolute",inset:0,borderRadius:"50%",background:"radial-gradient(circle at 32% 28%, #1D4ED8 0%, #1E3A8A 35%, #0F1F5C 65%, #060D2E 100%)",boxShadow:"inset -20px -20px 60px rgba(0,0,0,.7), inset 12px 12px 40px rgba(30,80,180,.4)"}}/>
+            {/* Líneas de la cuadrícula (meridianos y paralelos) */}
+            <svg viewBox="0 0 200 200" style={{position:"absolute",inset:0,width:"100%",height:"100%"}}>
+              {/* Paralelos horizontales */}
+              {[20,35,50,65,80,95,110,125,140,155,170].map(y=>(
+                <line key={y} x1="0" y1={y} x2="200" y2={y} stroke="#3B82F6" strokeWidth="0.4" opacity="0.35"/>
+              ))}
+              {/* Meridianos verticales como elipses */}
+              {[10,30,50,70,90,110,130,150,170,190].map((x,i)=>(
+                <ellipse key={x} cx="100" cy="100" rx={Math.max(2,Math.abs(x-100)*0.9)} ry="100" fill="none" stroke="#3B82F6" strokeWidth="0.4" opacity="0.35"/>
+              ))}
+              {/* Continentes simplificados — manchas verdes */}
+              <path d="M60,55 Q80,45 95,55 Q105,65 98,78 Q85,88 68,80 Q52,72 55,62 Z" fill="#166534" opacity="0.75"/>
+              <path d="M100,50 Q120,42 135,52 Q148,62 142,76 Q130,86 114,78 Q100,70 96,60 Z" fill="#166534" opacity="0.75"/>
+              <path d="M38,90 Q58,82 70,94 Q78,106 68,118 Q52,126 38,116 Q24,106 28,96 Z" fill="#166534" opacity="0.7"/>
+              <path d="M115,85 Q135,78 150,90 Q160,102 150,115 Q135,124 118,115 Q108,105 110,93 Z" fill="#166534" opacity="0.7"/>
+              <path d="M155,50 Q170,44 178,54 Q182,64 175,72 Q165,78 156,70 Q148,62 150,54 Z" fill="#166534" opacity="0.65"/>
+              <path d="M50,130 Q65,124 74,134 Q80,144 72,154 Q60,162 48,154 Q38,144 42,135 Z" fill="#166534" opacity="0.65"/>
+              {/* Polo blanco */}
+              <ellipse cx="100" cy="195" rx="30" ry="10" fill="white" opacity="0.18"/>
+              <ellipse cx="100" cy="5" rx="22" ry="8" fill="white" opacity="0.12"/>
+            </svg>
+            {/* Brillo especular */}
+            <div style={{position:"absolute",inset:0,background:"radial-gradient(circle at 28% 22%, rgba(255,255,255,.18) 0%, transparent 55%)",borderRadius:"50%",pointerEvents:"none"}}/>
+          </div>
+
+          {/* Texto y botón — alineados a la izquierda */}
+          <div style={{position:"absolute",top:"12%",left:"5%",right:"5%",zIndex:1}}>
+            <div style={{fontSize:10,color:"#D97706",letterSpacing:6,fontWeight:700,marginBottom:10}}>✦ AI TRAVEL PLANNER</div>
+            <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:"clamp(56px,18vw,96px)",fontWeight:900,color:"white",letterSpacing:-4,lineHeight:.95,marginBottom:24}}>voyager</div>
             <button onClick={()=>sScreen("setup")}
-              style={{background:T.gold,border:"none",borderRadius:16,padding:"15px 34px",color:"white",fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:10,boxShadow:`0 8px 32px ${T.gold}50`,transition:"transform .18s"}}
+              style={{background:T.gold,border:"none",borderRadius:18,padding:"16px 36px",color:"white",fontWeight:700,fontSize:16,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:10,boxShadow:`0 10px 40px ${T.gold}60`,letterSpacing:.3}}
               onMouseEnter={e=>e.currentTarget.style.transform="scale(1.04)"}
               onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
-              <span style={{fontSize:20}}>+</span> nuevo itinerario
+              <span style={{fontSize:20}}>+</span> Crear viaje
             </button>
-            <div style={{marginTop:36}}>
-              <button onClick={()=>sDark(d=>!d)} style={{background:"rgba(255,255,255,.1)",border:"none",borderRadius:"50%",width:36,height:36,color:"rgba(255,255,255,.7)",fontSize:16,cursor:"pointer",display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
-                {dark?"☀️":"🌙"}
-              </button>
-            </div>
           </div>
         </div>
       )}
