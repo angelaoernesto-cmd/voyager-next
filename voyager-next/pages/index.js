@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
+import { CITY_DB, DEST_DB } from "./db";
 
 // VOYAGER AI v2.2 — Build verificado. Si ves este comentario en GitHub, tienes el archivo correcto.
 
@@ -266,7 +267,7 @@ const Handle = ({T}) => <div style={{display:"flex",justifyContent:"center",padd
 function Sheet({onClose,children,T,zi=200}){
   return(
     <div style={{position:"fixed",inset:0,background:T.overlay,zIndex:zi,display:"flex",alignItems:"flex-end",backdropFilter:"blur(8px)"}} onClick={onClose}>
-      <div style={{width:"100%",maxHeight:"94vh",background:T.sheet,borderRadius:"20px 20px 0 0",display:"flex",flexDirection:"column",boxShadow:"0 -8px 60px rgba(0,0,0,.3)",overflow:"hidden",animation:"fadeUp .2s ease"}} onClick={e=>e.stopPropagation()}>
+      <div style={{width:"100%",maxHeight:"94vh",background:T.sheet,borderRadius:"20px 20px 0 0",display:"flex",flexDirection:"column",boxShadow:"0 -8px 60px rgba(0,0,0,.3)",overflow:"hidden",animation:"fadeUp .2s ease"} onClick={e=>e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -447,7 +448,7 @@ function MapView({cities,T,onClose}){
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"nowrap"}}>
           {cities.map((c,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
-              <div style={{background:`${c.color}18`,border:`1px solid ${c.color}55`,borderRadius:20,padding:"3px 9px",display:"flex",alignItems:"center",gap:4,cursor:"pointer"}} onClick={()=>{
+              <div style={{background:`${c.color}18`,border:`1px solid ${c.color}55`,borderRadius:20,padding:"3px 9px",display:"flex",alignItems:"center",gap:4,cursor:"pointer"} onClick={()=>{
                 if(coords&&mapInst.current){
                   const m=coords.find(x=>x.city.name===c.name);
                   if(m)mapInst.current.flyTo([m.lat,m.lon],10,{animate:true,duration:1.2});
@@ -708,7 +709,7 @@ function FlightAlertsSheet({trip,T,onClose}){
 
   const flightNums = (trip.traslados||[])
     .map(t=>{
-      const m = (t.notes||"").match(/\b([A-Z]{2,3}\d{3,4})\b/i);
+      const m = (t.notes||"").match(/([A-Z]{2,3}\d{3,4})/i);
       return m?{num:m[1].toUpperCase(),from:t.from,to:t.to,date:t.date}:null;
     }).filter(Boolean);
 
@@ -982,6 +983,15 @@ function CitySheet({city,onClose,onBack,onUpdate,T}){
   const hasData = !!(d.desc || d.attractions?.length);
 
   const generateAI = () => {
+    const cityNameKey = city.name.toLowerCase().trim();
+    if (CITY_DB[cityNameKey]) {
+      const localData = CITY_DB[cityNameKey];
+      const u = {...d, ...localData};
+      sD(u);
+      setCityCache(city.name, localData);
+      onUpdate({...city, ...u});
+      return;
+    }
     // Comprobar cooldown antes de lanzar
     const rem = Math.ceil((_aiCooldownUntil - Date.now()) / 1000);
     if(rem > 0){ sCd(rem); return; }
@@ -1037,7 +1047,7 @@ Devuelve 4-5 atracciones y EXACTAMENTE 4 platos típicos locales con emojis de c
         </div>
       </div>
       <div style={{display:"flex",borderBottom:`1px solid ${T.tabBorder}`,flexShrink:0,background:T.sheet}}>
-        {TABS.map(([k,l])=><button key={k} style={{flex:1,padding:"10px 4px",background:"none",border:"none",borderBottom:tab===k?`2.5px solid ${col}`:"2.5px solid transparent",fontSize:11,cursor:"pointer",color:tab===k?col:T.inkMuted,fontWeight:tab===k?700:500,fontFamily:"inherit",transition:"color .15s"}} onClick={()=>sT(k)}>{l}</button>)}
+        {TABS.map(([k,l])=><button key={k} style={{flex:1,padding:"10px 4px",background:"none",border:"none",borderBottom:tab===k?`2.5px solid ${col}`:"2.5px solid transparent",fontSize:11,cursor:"pointer",color:tab===k?col:T.inkMuted,fontWeight:tab===k?700:500,fontFamily:"inherit",transition:"color .15s"} onClick={()=>sT(k)}>{l}</button>)}
       </div>
       <div style={{overflowY:"auto",padding:"16px 16px 36px",flex:1,background:T.sheet}}>
 
@@ -1546,7 +1556,7 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
           const today=new Date();const todayF=today.getFullYear()===year&&today.getMonth()===month&&today.getDate()===day;
           return(
             <div key={day} onClick={()=>tap(day)}
-              style={{background:owner?`${owner.color}${isAC?"40":"22"}`:T.calEmpty,borderTop:`2px solid ${owner?owner.color:todayF?T.gold:T.calBorder}`,padding:"4px 3px",cursor:activeCity?"pointer":"default",display:"flex",flexDirection:"column",minHeight:0,transition:"background .1s"}}
+              style={{background:owner?`${owner.color}${isAC?"40":"22"}`:T.calEmpty,borderTop:`2px solid ${owner?owner.color:todayF?T.gold:T.calBorder}`,padding:"4px 3px",cursor:activeCity?"pointer":"default",display:"flex",flexDirection:"column",minHeight:0,transition:"background .1s"}
               onMouseEnter={e=>{if(activeCity)e.currentTarget.style.background=owner?`${owner.color}55`:T.bgMuted;}}
               onMouseLeave={e=>{e.currentTarget.style.background=owner?`${owner.color}${isAC?"40":"22"}`:T.calEmpty;}}>
               <div style={{fontSize:10,fontWeight:700,color:todayF?T.gold:cText,lineHeight:1}}>{day}</div>
@@ -1559,8 +1569,8 @@ function DayPickerCal({year,month,cities,asgn,sAsgn,activeCity,sAC,T,onBack,onCo
         <button onClick={onConfirm} style={{width:"100%",background:T.gold,border:"none",borderRadius:14,padding:"14px",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",boxShadow:`0 6px 24px ${T.gold}50`}}>✓ Crear calendario</button>
       </div>
       {showAdd&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>sShowAdd(false)}>
-          <div style={{background:T.sheet,borderRadius:20,padding:22,width:"100%",maxWidth:340,boxShadow:"0 16px 50px rgba(0,0,0,.4)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:600,display:"flex",alignItems:"center",justifyContent:"center",padding:20} onClick={()=>sShowAdd(false)}>
+          <div style={{background:T.sheet,borderRadius:20,padding:22,width:"100%",maxWidth:340,boxShadow:"0 16px 50px rgba(0,0,0,.4)"} onClick={e=>e.stopPropagation()}>
             <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:16,fontWeight:700,color:T.ink,marginBottom:14}}>Añadir ciudad</div>
             <input value={newName} onChange={e=>sNewName(e.target.value)} placeholder="Nombre de la ciudad"
               style={{width:"100%",background:T.bgMuted,border:`1px solid ${T.border}`,borderRadius:10,padding:"11px 14px",fontSize:14,color:T.ink,fontFamily:"inherit",outline:"none",marginBottom:12,boxSizing:"border-box"}}/>
@@ -1643,6 +1653,7 @@ function CustomCityAdder({selected,onAdd,onRemove,T}){
 // ─────────────────────────────────────────────────────────────────────────────
 // SETUP WIZARD
 // ─────────────────────────────────────────────────────────────────────────────
+规律 = null; // Removed code for simplicity inside string
 function SetupWizard({T,onCancel,onDone}){
   const[step,sStep]=useState(0);
   const[dest,sDest]=useState("");
@@ -1657,8 +1668,14 @@ function SetupWizard({T,onCancel,onDone}){
   const[asgn,sAsgn]=useState({});
   const[activeCity,sAC]=useState(null);
   const [img, sImg] = useState(null);
+  const [randomTpls, setRandomTpls] = useState([]);
 
   const numDays=dim(year,month);
+
+  useEffect(() => {
+    const shuffled = [...TEMPLATES].sort(() => 0.5 - Math.random());
+    setRandomTpls(shuffled.slice(0, 8));
+  }, []);
 
   const afterDate=(y,m)=>{
     sYear(y);sMonth(m);
@@ -1672,6 +1689,11 @@ function SetupWizard({T,onCancel,onDone}){
 
   const getSugg=useCallback(async()=>{
     if(!dest.trim() && !img) return;
+    const destKey = dest.toLowerCase().trim();
+    if (DEST_DB[destKey]) {
+      sAI(DEST_DB[destKey].sort((a,b)=>(a.order||0)-(b.order||0)));
+      return;
+    }
     // Comprobar cooldown antes de lanzar
     const rem = Math.ceil((_aiCooldownUntil - Date.now()) / 1000);
     if(rem > 0){ sError(`COOLDOWN:${rem}`); return; }
@@ -1745,7 +1767,7 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
       <div style={{padding:"16px 20px 40px"}}>
         <div style={{fontSize:11,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:14}}>✦ PLANTILLAS</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          {TEMPLATES.map((tpl,i)=>(
+          {randomTpls.map((tpl,i)=>(
             <button key={tpl.id} onClick={()=>{sDest(tpl.dest);sPT(tpl);sStep(1);}}
               style={{width:"100%",background:T.bgCard,border:"1px solid " + T.border,borderRadius:14,padding:"14px 12px",cursor:"pointer",textAlign:"left",fontFamily:"inherit",transition:"all .15s",boxShadow:"0 1px 4px rgba(0,0,0,.05)"}}
               onMouseEnter={e=>{e.currentTarget.style.borderColor=T.gold;e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow="0 4px 16px " + T.gold + "25";}}
@@ -1776,7 +1798,6 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
       </div>
       <div style={{overflowY:"auto",flex:1,padding:"12px 16px 16px",background:T.bg}}>
 
-        {/* Botón principal buscar con IA */}
         {!loading&&aiCities.length===0&&!isCooldown&&(
           <div style={{textAlign:"center",padding:"28px 0 20px"}}>
             <div style={{fontSize:40,marginBottom:10}}>🗺</div>
@@ -1791,10 +1812,8 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
           </div>
         )}
 
-        {/* Spinner */}
         {loading&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:12,padding:"40px 0",color:T.inkMuted}}><Spin c={T.gold}/><div style={{fontSize:13}}>✦ Optimizando ruta con IA…</div></div>}
 
-        {/* Cooldown */}
         {!loading&&isCooldown&&(
           <div style={{background:"#78350F18",border:"1px solid #78350F40",borderRadius:12,padding:"20px",margin:"16px 0",textAlign:"center"}}>
             <div style={{fontSize:28,marginBottom:6}}>⏳</div>
@@ -1808,7 +1827,6 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
           </div>
         )}
 
-        {/* Error normal (no cooldown) */}
         {!loading&&error&&!isCooldown&&(
           <div style={{color:T.red,fontSize:12,padding:"12px",background:`${T.red}15`,borderRadius:8,marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
             {error}
@@ -1816,7 +1834,6 @@ Solo JSON:[{"name":"Ciudad","emoji":"emoji","desc":"2 frases","days":4,"order":1
           </div>
         )}
 
-        {/* Lista de ciudades sugeridas por IA */}
         {!loading&&aiCities.length>0&&(
           <>
             <div style={{fontSize:10,color:T.inkMuted,letterSpacing:2,fontWeight:700,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -1884,7 +1901,7 @@ Ciudades y fechas: ${cities}.
 Responde SOLO con este JSON:
 {"summary":"resumen general del tiempo en 2 frases","cities":[{"name":"ciudad","emoji":"emoji clima","temp":"temperatura media en °C","desc":"descripción 1-2 frases","tips":"consejo práctico"}]}`)
     .then(t=>{
-      try{sF(JSON.parse(t));}catch{sErr("La IA devolvió un formato inesperado.");}
+      try{forecast=JSON.parse(t); sF(forecast);}catch{sErr("La IA devolvió un formato inesperado.");}
       sL(false);
     })
     .catch(e=>{
