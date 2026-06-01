@@ -267,7 +267,8 @@ const Handle = ({T}) => <div style={{display:"flex",justifyContent:"center",padd
 function Sheet({onClose,children,T,zi=200}){
   return(
     <div style={{position:"fixed",inset:0,background:T.overlay,zIndex:zi,display:"flex",alignItems:"flex-end",backdropFilter:"blur(8px)"}} onClick={onClose}>
-      <div style={{width:"100%",maxHeight:"94vh",background:T.sheet,borderRadius:"20px 20px 0 0",display:"flex",flexDirection:"column",boxShadow:"0 -8px 60px rgba(0,0,0,.3)",overflow:"hidden",animation:"fadeUp .2s ease"} onClick={e=>e.stopPropagation()}>
+      {/* ⬇️ Aquí está la corrección: se añadieron las dos llaves }} antes del onClick ⬇️ */}
+      <div style={{width:"100%",maxHeight:"94vh",background:T.sheet,borderRadius:"20px 20px 0 0",display:"flex",flexDirection:"column",boxShadow:"0 -8px 60px rgba(0,0,0,.3)",overflow:"hidden",animation:"fadeUp .2s ease"}} onClick={e=>e.stopPropagation()}>
         {children}
       </div>
     </div>
